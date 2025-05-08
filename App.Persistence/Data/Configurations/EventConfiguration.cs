@@ -25,8 +25,8 @@ public class EventConfiguration : IEntityTypeConfiguration<Event>{
         builder.Property(e => e.MaxParticipants)
             .IsRequired(); 
                     
-        builder.ToTable(t => 
-            t.HasCheckConstraint("CK_MaxParticipants_GreaterThanZero", "[MaxParticipants] > 0"));
+        builder.ToTable(t =>
+            t.HasCheckConstraint("CK_MaxParticipants_GreaterThanZero", "\"MaxParticipants\" > 0"));
 
         builder.HasOne(e => e.Category)        
                 .WithMany(c => c.Events)        
