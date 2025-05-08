@@ -39,4 +39,9 @@ app.UseSwaggerUI();
 
 app.MapControllers();
 
+using (var scope = app.Services.CreateScope())
+{
+    await DatabaseInitializer.Initialize(scope.ServiceProvider);
+}
+
 app.Run();
