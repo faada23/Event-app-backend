@@ -1,12 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
   <ItemGroup>
-    <ProjectReference Include="..\App.persistence\App.persistence.csproj" />
-    <ProjectReference Include="..\App.core\App.core.csproj" />
+    <ProjectReference Include="..\App.persistence\App.persistence.csproj"/>
+    <ProjectReference Include="..\App.core\App.core.csproj"/>
+    <ProjectReference Include="..\App.infrastructure\App.infrastructure.csproj"/>
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Swashbuckle.AspNetCore.Swagger" Version="8.1.1" />
-    <PackageReference Include="Swashbuckle.AspNetCore.SwaggerUI" Version="8.1.1" />
-    <PackageReference Include="Swashbuckle.AspNetCore.SwaggerGen" Version="8.1.1" />
+    <PackageReference Include="Swashbuckle.AspNetCore.Swagger" Version="8.1.1"/>
+    <PackageReference Include="Swashbuckle.AspNetCore.SwaggerUI" Version="8.1.1"/>
+    <PackageReference Include="Swashbuckle.AspNetCore.SwaggerGen" Version="8.1.1"/>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.0"/>
   </ItemGroup>
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>

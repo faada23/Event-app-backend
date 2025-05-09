@@ -1,3 +1,4 @@
+using System.IdentityModel.Tokens.Jwt;
 using Microsoft.AspNetCore.CookiePolicy;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,9 +13,26 @@ builder.Services.AddScoped<IRepository<User>,Repository<User>>();
 builder.Services.AddScoped<IRepository<Event>,Repository<Event>>();
 builder.Services.AddScoped<IRepository<Category>,Repository<Category>>();
 
+builder.Services.AddScoped<IJwtProvider,JwtProvider>();
+
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("AuthenticatedUserPolicy", policy =>
+        policy.RequireAuthenticatedUser());
+
+    options.AddPolicy("AdminPolicy", policy =>
+        policy.RequireRole("Admin")); 
+
+    //пример, не планируется использование
+    options.AddPolicy("HasEmailPolicy", policy =>
+        policy.RequireClaim(JwtRegisteredClaimNames.Email)); 
+});
+
+builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("JWTOptions"));
+builder.Services.AddAuth(builder.Configuration);
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-
 
 var app = builder.Build();
 
