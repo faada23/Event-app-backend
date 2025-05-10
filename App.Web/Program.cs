@@ -12,6 +12,10 @@ builder.Services.AddDbContext<DatabaseContext>(options => options.UseNpgsql(Envi
 builder.Services.AddScoped<IRepository<User>,Repository<User>>();
 builder.Services.AddScoped<IRepository<Event>,Repository<Event>>();
 builder.Services.AddScoped<IRepository<Category>,Repository<Category>>();
+builder.Services.AddScoped<IRepository<RefreshToken>,Repository<RefreshToken>>();
+builder.Services.AddScoped<IRepository<Role>,Repository<Role>>();
+
+builder.Services.AddScoped<IAuthService,AuthService>();
 
 builder.Services.AddScoped<IJwtProvider,JwtProvider>();
 

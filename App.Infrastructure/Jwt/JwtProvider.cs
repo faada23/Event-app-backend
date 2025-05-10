@@ -24,7 +24,7 @@ public class JwtProvider : IJwtProvider
 
     public async Task<Result<(string accessToken,string refreshToken)>> GenerateTokens(User user)
     {   
-         var claims = new List<Claim>{
+        var claims = new List<Claim>{
             new Claim("Id", user.Id.ToString()),
             new Claim(JwtRegisteredClaimNames.Email, user.Email), 
             new Claim(JwtRegisteredClaimNames.GivenName, user.FirstName),
@@ -36,15 +36,9 @@ public class JwtProvider : IJwtProvider
             claims.Add(new Claim(ClaimsIdentity.DefaultRoleClaimType, role.Name));
         }
 
-        var secretKeyString = Environment.GetEnvironmentVariable("JwtSecretKey");
-        if (string.IsNullOrEmpty(secretKeyString))
-        {
-            throw new InvalidOperationException("Jwt SecretKey is not configured in JwtOptions or Environment Variable 'JwtSecretKey'.");
-        }
-
         var signingCred = new SigningCredentials(
             new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(secretKeyString)),
+                Encoding.UTF8.GetBytes(_jwtSecretKey!)),
                 SecurityAlgorithms.HmacSha256);
 
         var accessTokenExpireTime = DateTime.UtcNow.Add(_options.Value.AccessTokenExpires);
