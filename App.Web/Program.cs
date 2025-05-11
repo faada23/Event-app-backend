@@ -18,7 +18,7 @@ builder.Services.AddScoped<IRepository<Image>,Repository<Image>>();
 builder.Services.AddScoped<IRepository<EventParticipant>,Repository<EventParticipant>>();
 
 builder.Services.AddScoped<IAuthService,AuthService>();
-
+builder.Services.AddScoped<ICategoryService,CategoryService>();
 
 builder.Services.AddScoped<IJwtProvider,JwtProvider>();
 
