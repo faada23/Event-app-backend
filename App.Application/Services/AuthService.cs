@@ -20,7 +20,7 @@ public class AuthService : IAuthService
         _refreshTokenRepository = refreshTokenRepository ?? throw new ArgumentNullException(nameof(refreshTokenRepository));
         _roleRepository = roleRepository ?? throw new ArgumentNullException(nameof(roleRepository));
         _jwtProvider = jwtProvider ?? throw new ArgumentNullException(nameof(jwtProvider));
-        _mapper = mapper;
+        _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
         _passwordHasher = new PasswordHasher<User>();
     }
 

@@ -6,7 +6,7 @@ public class CategoryService : ICategoryService
     public CategoryService(IRepository<Category> categoryRepository, IDefaultMapper mapper)
     {
         _categoryRepository = categoryRepository ?? throw new ArgumentNullException(nameof(categoryRepository));
-        _mapper = mapper;
+        _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
     }
 
     private async Task<Result<Category>> GetCategoryEntityByIdAsync(Guid id)
