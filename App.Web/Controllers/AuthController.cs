@@ -13,6 +13,18 @@ public class AuthController : ControllerBase
         _authService = authService ?? throw new ArgumentNullException(nameof(authService));
     }
 
+    private void SetTokenCookies(string accessToken, string refreshToken)
+    {
+        Response.Cookies.Append("JwtCookie", accessToken);
+        Response.Cookies.Append("RefreshTokenCookie", refreshToken);
+    }
+
+    private void ClearTokenCookies()
+    {
+        Response.Cookies.Append("JwtCookie", "");
+        Response.Cookies.Append("RefreshTokenCookie", "");
+    }
+
     [AllowAnonymous]
     [HttpPost("register")]
     public async Task<IActionResult> Register([FromBody] RegisterUserRequest request)
@@ -92,19 +104,6 @@ public class AuthController : ControllerBase
         }
         var objectResult = Result<string>.Failure(result.Message!, result.ErrorType!.Value);
         return objectResult.ToActionResult();
-    }
-
-    private void SetTokenCookies(string accessToken, string refreshToken)
-    {
-        Response.Cookies.Append("JwtCookie", accessToken);
-        Response.Cookies.Append("RefreshTokenCookie", refreshToken);
-    }
-
-    private void ClearTokenCookies()
-    {
-        Response.Cookies.Append("JwtCookie", "");
-
-        Response.Cookies.Append("RefreshTokenCookie", "");
     }
 
 }

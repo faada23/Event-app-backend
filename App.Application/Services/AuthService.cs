@@ -7,17 +7,20 @@ public class AuthService : IAuthService
     private readonly IRepository<Role> _roleRepository; 
     private readonly IJwtProvider _jwtProvider; 
     private readonly PasswordHasher<User> _passwordHasher;
+    private readonly IDefaultMapper _mapper;
 
     public AuthService(
         IRepository<User> userRepository,
         IRepository<RefreshToken> refreshTokenRepository,
         IRepository<Role> roleRepository,
+        IDefaultMapper mapper,
         IJwtProvider jwtProvider)
     {
         _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
         _refreshTokenRepository = refreshTokenRepository ?? throw new ArgumentNullException(nameof(refreshTokenRepository));
         _roleRepository = roleRepository ?? throw new ArgumentNullException(nameof(roleRepository));
         _jwtProvider = jwtProvider ?? throw new ArgumentNullException(nameof(jwtProvider));
+        _mapper = mapper;
         _passwordHasher = new PasswordHasher<User>();
     }
 
@@ -33,17 +36,11 @@ public class AuthService : IAuthService
             return Result<bool>.Failure("User with this email already exists.", ErrorType.AlreadyExists);
         }
 
-        var user = new User
-        {
-            Id = Guid.NewGuid(),
-            Email = registerDto.Email,
-            FirstName = registerDto.FirstName,
-            LastName = registerDto.LastName,
-        };
+        var user = _mapper.Map<RegisterUserRequest, User>(registerDto);
 
         user.PasswordHash = _passwordHasher.HashPassword(user, registerDto.Password);
 
-        var getRoleResult = await _roleRepository.GetFirstOrDefault(r => r.Name == "User");
+        var getRoleResult = await _roleRepository.GetFirstOrDefault(r => r.Name == RoleConstants.User);
 
         if (getRoleResult.IsSuccess && getRoleResult.Value != null)
         {
@@ -98,11 +95,7 @@ public class AuthService : IAuthService
             return Result<LoginUserResponse>.Failure(tokensResult.Message!, tokensResult.ErrorType!.Value);
         }
 
-        var response = new LoginUserResponse
-        (
-            tokensResult.Value.accessToken,
-            tokensResult.Value.refreshToken
-        );
+        var response = _mapper.Map<(string accessToken, string refreshToken), LoginUserResponse>(tokensResult.Value);
 
         return Result<LoginUserResponse>.Success(response);
     }
@@ -120,11 +113,7 @@ public class AuthService : IAuthService
             return Result<RefreshTokenResponse>.Failure(refreshResult.Message!,refreshResult.ErrorType!.Value);
         }
 
-        var response = new RefreshTokenResponse
-        (
-            refreshResult.Value.accessToken,
-            refreshResult.Value.refreshToken
-        );
+        var response = _mapper.Map<(string accessToken, string refreshToken), RefreshTokenResponse>(refreshResult.Value);
 
         return Result<RefreshTokenResponse>.Success(response);
     }

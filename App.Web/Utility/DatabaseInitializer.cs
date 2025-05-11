@@ -29,8 +29,8 @@ public static class DatabaseInitializer
     {
         if (!await context.Roles.AnyAsync())
         {   
-            var adminRoleName = "Admin";
-            var userRoleName = "User";
+            var adminRoleName = RoleConstants.Administrator;
+            var userRoleName = RoleConstants.User;
 
             await context.Roles.AddRangeAsync(
                 new Role{Name = adminRoleName},
@@ -51,8 +51,8 @@ public static class DatabaseInitializer
             var AP1 = Environment.GetEnvironmentVariable("EventAppAP1") 
                     ?? throw new ArgumentNullException("EventAppAP1", "Admin password is not set");
 
-            var adminrRole = await context.Roles.FirstAsync(r => r.Name == "Admin");
-            var userRole = await context.Roles.FirstAsync(r => r.Name == "User"); 
+            var adminRole = await context.Roles.FirstAsync(r => r.Name == RoleConstants.Administrator);
+            var userRole = await context.Roles.FirstAsync(r => r.Name == RoleConstants.User); 
 
             var user = new User{
                     Email = defaultAdminEmail, 
@@ -64,7 +64,7 @@ public static class DatabaseInitializer
 
             user.PasswordHash = hasher.HashPassword(user, user.PasswordHash);
 
-            user.Roles = new List<Role> { adminrRole, userRole };
+            user.Roles = new List<Role> { adminRole, userRole };
             
             await context.Users.AddAsync(user);
             await context.SaveChangesAsync();
