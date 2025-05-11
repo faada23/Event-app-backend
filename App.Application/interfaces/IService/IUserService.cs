@@ -6,4 +6,5 @@ public interface IUserService
     Task<Result<bool>> DeleteUser(Guid id);
     Task<Result<UserEventParticipationResponse>> ParticipateInEvent(Guid userId, Guid eventId);
     Task<Result<bool>> CancelEventParticipation(Guid userId, Guid eventId);
+    Task<Result<PagedResponse<UserParticipatedEventResponse>>> GetUserParticipatedEvents(Guid id,PaginationParameters? pagParams);
 }

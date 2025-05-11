@@ -67,5 +67,22 @@ public static class MapsterConfiguration
             .Map(dest => dest.UserId, src => src.UserId)
             .Map(dest => dest.EventId, src => src.EventId)
             .Map(dest => dest.EventRegistrationDate, src => src.EventRegistrationDate);
+        
+        config.NewConfig<Event, UserParticipatedEventResponse>()
+                .Map(dest => dest.EventId, src => src.Id)
+                .Map(dest => dest.EventName, src => src.Name)
+                .Map(dest => dest.DateTimeOfEvent, src => src.DateTimeOfEvent)
+                .Map(dest => dest.Location, src => src.Location);
+
+            config.NewConfig<PagedList<EventParticipant>, PagedResponse<UserParticipatedEventResponse>>()
+                .Map(dest => dest.CurrentPage, src => src.CurrentPage)
+                .Map(dest => dest.PageSize, src => src.PageSize)
+                .Map(dest => dest.TotalItems, src => src.TotalItems)
+                .Map(dest => dest.TotalPages, src => src.TotalPages)
+                .Map(dest => dest.Data,
+                     src => src 
+                                .Where(ep => ep.Event != null) 
+                                .Select(ep => ep.Event) 
+                    );
     }
 }

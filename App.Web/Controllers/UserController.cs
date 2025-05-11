@@ -140,4 +140,14 @@ public class UsersController : ControllerBase
         var result = await _userService.CancelEventParticipation(userId, eventId);
         return result.ToActionResult();
     }
+
+    [HttpGet("participated-events")]
+    [Authorize(Policy ="AuthenticatedUserPolicy")]
+    public async Task<IActionResult> GetUserParticipatedEvents([FromQuery] PaginationParameters? pagParams)
+    {   
+        Guid userId = GetCurrentUserIdFromClaims();
+
+        var result = await _userService.GetUserParticipatedEvents(userId, pagParams);
+        return result.ToActionResult();     
+    }
 }

@@ -195,4 +195,35 @@ public class UserService : IUserService
 
         return Result<bool>.Success(true);
     }
+
+    public async Task<Result<PagedResponse<UserParticipatedEventResponse>>> GetUserParticipatedEvents(Guid userId, PaginationParameters? pagParams)
+    {
+        var userExistsResult = await _userRepository.GetFirstOrDefault(u => u.Id == userId);
+        if (!userExistsResult.IsSuccess)
+        {
+            return Result<PagedResponse<UserParticipatedEventResponse>>.Failure(userExistsResult.Message!, userExistsResult.ErrorType!.Value);
+        }
+        if (userExistsResult.Value == null)
+        {
+            return Result<PagedResponse<UserParticipatedEventResponse>>.Failure($"User with ID {userId} not found.", ErrorType.RecordNotFound);
+        }
+
+        var participationsPageResult = await _eventParticipantRepository.GetAll(
+            pagParams: pagParams,
+            filter: ep => ep.UserId == userId,
+            includeProperties: "Event",
+            orderBy: q => q.OrderByDescending(ep => ep.EventRegistrationDate)
+        );
+
+        if (!participationsPageResult.IsSuccess)
+        {
+            return Result<PagedResponse<UserParticipatedEventResponse>>.Failure(participationsPageResult.Message!, participationsPageResult.ErrorType!.Value);
+        }
+
+        var pagedParticipations = participationsPageResult.Value;
+
+        var pagedResponse = _mapper.Map<PagedList<EventParticipant>, PagedResponse<UserParticipatedEventResponse>>(pagedParticipations);
+
+        return Result<PagedResponse<UserParticipatedEventResponse>>.Success(pagedResponse);
+    }
 }
