@@ -22,6 +22,7 @@ public static class DatabaseInitializer
         {   
             await transaction.RollbackAsync();
             Console.WriteLine("Exception while Initializing Database: "+ex);
+            throw;
         }
     }
 
