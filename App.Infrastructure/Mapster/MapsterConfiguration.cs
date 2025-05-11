@@ -20,5 +20,20 @@ public static class MapsterConfiguration
         config.NewConfig<(string accessToken, string refreshToken), RefreshTokenResponse>()
             .Map(dest => dest.AccessToken, src => src.accessToken)
             .Map(dest => dest.RefreshToken, src => src.refreshToken);
+        
+        config.NewConfig<Category, GetCategoryResponse>()
+                .Map(dest => dest.Id, src => src.Id)
+                .Map(dest => dest.Name, src => src.Name);
+
+        config.NewConfig<CreateUpdateCategoryRequest, Category>()
+            .Map(dest => dest.Name, src => src.Name)
+            .Ignore(dest => dest.Id);
+
+         config.NewConfig<PagedList<Category>, PagedResponse<GetCategoryResponse>>()
+                .Map(dest => dest.Data, src => src)
+                .Map(dest => dest.CurrentPage, src => src.CurrentPage)
+                .Map(dest => dest.PageSize, src => src.PageSize)
+                .Map(dest => dest.TotalItems, src => src.TotalItems)
+                .Map(dest => dest.TotalPages, src => src.TotalPages);
     }
 }
