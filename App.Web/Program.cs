@@ -1,8 +1,8 @@
 using System.IdentityModel.Tokens.Jwt;
+using Mapster;
+using MapsterMapper;
 using Microsoft.AspNetCore.CookiePolicy;
 using Microsoft.EntityFrameworkCore;
-
-
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -14,8 +14,11 @@ builder.Services.AddScoped<IRepository<Event>,Repository<Event>>();
 builder.Services.AddScoped<IRepository<Category>,Repository<Category>>();
 builder.Services.AddScoped<IRepository<RefreshToken>,Repository<RefreshToken>>();
 builder.Services.AddScoped<IRepository<Role>,Repository<Role>>();
+builder.Services.AddScoped<IRepository<Image>,Repository<Image>>();
+builder.Services.AddScoped<IRepository<EventParticipant>,Repository<EventParticipant>>();
 
 builder.Services.AddScoped<IAuthService,AuthService>();
+
 
 builder.Services.AddScoped<IJwtProvider,JwtProvider>();
 
@@ -34,6 +37,12 @@ builder.Services.AddAuthorization(options =>
 
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("JWTOptions"));
 builder.Services.AddAuth(builder.Configuration);
+
+var typeAdapterConfig = TypeAdapterConfig.GlobalSettings;
+typeAdapterConfig.RegisterMaps();
+builder.Services.AddSingleton(typeAdapterConfig);
+builder.Services.AddScoped<IMapper, ServiceMapper>();
+builder.Services.AddScoped<IDefaultMapper, MapsterAdapter>();
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
