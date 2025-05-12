@@ -9,3 +9,4 @@ App.Core/bin
 App.Core/obj
 App.Application/bin
 App.Application/obj
+.env

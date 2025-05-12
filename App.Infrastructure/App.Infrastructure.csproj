@@ -12,8 +12,8 @@
     <PackageReference Include="Mapster.DependencyInjection" Version="1.0.1"/>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\App.core\App.core.csproj"/>
-    <ProjectReference Include="..\App.application\App.application.csproj"/>
-    <ProjectReference Include="..\App.persistence\App.persistence.csproj"/>
+    <ProjectReference Include="..\App.Core\App.Core.csproj"/>
+    <ProjectReference Include="..\App.Application\App.Application.csproj"/>
+    <ProjectReference Include="..\App.Persistence\App.Persistence.csproj"/>
   </ItemGroup>
 </Project>

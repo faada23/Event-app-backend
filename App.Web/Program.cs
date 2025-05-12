@@ -89,6 +89,12 @@ app.UseSwaggerUI();
 
 app.MapControllers();
 
+using (var scope = app.Services.CreateScope()) 
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<DatabaseContext>();
+    dbContext.Database.Migrate();
+}
+
 using (var scope = app.Services.CreateScope())
 {
     await DatabaseInitializer.Initialize(scope.ServiceProvider);
