@@ -66,6 +66,8 @@ builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
+app.UseGlobalExceptionHandler();
+
 app.UseHttpsRedirection();
 
 app.UseCookiePolicy(new CookiePolicyOptions
