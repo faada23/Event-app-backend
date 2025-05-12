@@ -2,9 +2,13 @@ App.Persistence/obj
 App.Persistence/bin
 App.Web/bin
 App.Web/obj
+App.Web/wwwroot
 App.Infrastructure/bin
 App.Infrastructure/obj
 App.Core/bin
 App.Core/obj
 App.Application/bin
 App.Application/obj
+App.Tests/bin
+App.Tests/obj
+.env
