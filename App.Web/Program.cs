@@ -21,6 +21,13 @@ builder.Services.AddScoped<IAuthService,AuthService>();
 builder.Services.AddScoped<ICategoryService,CategoryService>();
 builder.Services.AddScoped<IUserService,UserService>();
 
+builder.Services.Configure<FileStorageOptions>(options =>
+{
+    options.BasePath = builder.Environment.WebRootPath;
+});
+
+builder.Services.AddScoped<IFileStorageService, FileStorageService>();
+
 builder.Services.AddScoped<IJwtProvider,JwtProvider>();
 
 builder.Services.AddAuthorization(options =>

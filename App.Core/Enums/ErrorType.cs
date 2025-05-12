@@ -4,6 +4,7 @@ public enum ErrorType
     RecordNotFound,
     AlreadyExists,
     InvalidInput,
-    Forbidden,      
+    Forbidden,
+    FileSystemError,   
     UnknownError
 }
