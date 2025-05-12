@@ -1,4 +1,7 @@
+using System.Globalization;
 using System.IdentityModel.Tokens.Jwt;
+using FluentValidation;
+using FluentValidation.AspNetCore;
 using Mapster;
 using MapsterMapper;
 using Microsoft.AspNetCore.CookiePolicy;
@@ -7,6 +10,11 @@ using Microsoft.EntityFrameworkCore;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
+
+builder.Services.AddValidatorsFromAssemblyContaining<CreateEventRequestValidator>();
+builder.Services.AddFluentValidationAutoValidation().AddFluentValidationClientsideAdapters();
+
+ValidatorOptions.Global.LanguageManager.Culture = new CultureInfo("en-US");
 
 builder.Services.AddDbContext<DatabaseContext>(options => options.UseNpgsql(Environment.GetEnvironmentVariable("EventDbConnection")));
 builder.Services.AddScoped<IRepository<User>,Repository<User>>();
