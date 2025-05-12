@@ -20,6 +20,7 @@ builder.Services.AddScoped<IRepository<EventParticipant>,Repository<EventPartici
 builder.Services.AddScoped<IAuthService,AuthService>();
 builder.Services.AddScoped<ICategoryService,CategoryService>();
 builder.Services.AddScoped<IUserService,UserService>();
+builder.Services.AddScoped<IEventService,EventService>();
 
 builder.Services.Configure<FileStorageOptions>(options =>
 {

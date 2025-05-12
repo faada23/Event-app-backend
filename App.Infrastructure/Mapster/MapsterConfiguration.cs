@@ -74,7 +74,7 @@ public static class MapsterConfiguration
                 .Map(dest => dest.DateTimeOfEvent, src => src.DateTimeOfEvent)
                 .Map(dest => dest.Location, src => src.Location);
 
-            config.NewConfig<PagedList<EventParticipant>, PagedResponse<UserParticipatedEventResponse>>()
+        config.NewConfig<PagedList<EventParticipant>, PagedResponse<UserParticipatedEventResponse>>()
                 .Map(dest => dest.CurrentPage, src => src.CurrentPage)
                 .Map(dest => dest.PageSize, src => src.PageSize)
                 .Map(dest => dest.TotalItems, src => src.TotalItems)
@@ -84,5 +84,56 @@ public static class MapsterConfiguration
                                 .Where(ep => ep.Event != null) 
                                 .Select(ep => ep.Event) 
                     );
+                    
+        config.NewConfig<Image, EventImageDetailsResponse>()
+                .Map(dest => dest.ImageId, src => src.Id) 
+                .Map(dest => dest.StoredPath, src => src.StoredPath)
+                .Map(dest => dest.ContentType, src => src.ContentType)
+                .Map(dest => dest.UploadedAt, src => src.UploadedAt);
+
+        config.NewConfig<Event, GetEventResponse>()
+            .Map(dest => dest.Id, src => src.Id)
+            .Map(dest => dest.Name, src => src.Name)
+            .Map(dest => dest.Description, src => src.Description)
+            .Map(dest => dest.DateTimeOfEvent, src => src.DateTimeOfEvent)
+            .Map(dest => dest.Location, src => src.Location)
+            .Map(dest => dest.MaxParticipants, src => src.MaxParticipants)
+            .Map(dest => dest.Category, src => src.Category)
+
+            .Map(dest => dest.Image, src => src.Image);
+
+        config.NewConfig<CreateEventRequest, Event>()
+            .Map(dest => dest.Name, src => src.Name)
+            .Map(dest => dest.Description, src => src.Description)
+            .Map(dest => dest.DateTimeOfEvent, src => src.EventDate) 
+            .Map(dest => dest.Location, src => src.Location)
+            .Map(dest => dest.MaxParticipants, src => src.MaxParticipants)
+            .Map(dest => dest.CategoryId, src => src.CategoryId)
+            .IgnoreNullValues(true) 
+            .Ignore(dest => dest.Id)
+            .Ignore(dest => dest.Category) 
+            .Ignore(dest => dest.Image)
+            .Ignore(dest => dest.EventParticipants);
+
+        config.NewConfig<UpdateEventRequest, Event>()
+            .Map(dest => dest.Name, src => src.Name)
+            .Map(dest => dest.Description, src => src.Description)
+            .Map(dest => dest.DateTimeOfEvent, src => src.DateTimeOfEvent)
+            .Map(dest => dest.Location, src => src.Location)
+            .Map(dest => dest.MaxParticipants, src => src.MaxParticipants)
+            .Map(dest => dest.CategoryId, src => src.CategoryId)
+            .IgnoreNonMapped(true) 
+            .IgnoreNullValues(true) 
+            .Ignore(dest => dest.Id)
+            .Ignore(dest => dest.Category)
+            .Ignore(dest => dest.Image) 
+            .Ignore(dest => dest.EventParticipants);
+
+        config.NewConfig<PagedList<Event>, PagedResponse<GetEventResponse>>()
+            .Map(dest => dest.Data, src => src) 
+            .Map(dest => dest.CurrentPage, src => src.CurrentPage)
+            .Map(dest => dest.PageSize, src => src.PageSize)
+            .Map(dest => dest.TotalItems, src => src.TotalItems)
+            .Map(dest => dest.TotalPages, src => src.TotalPages);
     }
 }
