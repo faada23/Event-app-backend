@@ -12,13 +12,6 @@ public class UsersController : ControllerBase
     {
         _userService = userService ?? throw new ArgumentNullException(nameof(userService));
     }
-
-    private ActionResult ResultIdIsNull(string idName = "ID")
-    {
-        var badRequest = Result<object>.Failure($"{idName} cannot be empty.", ErrorType.InvalidInput);
-        return badRequest.ToActionResult();
-    }
-
     private void ClearTokenCookies()
     {
         Response.Cookies.Append("JwtCookie", "");
@@ -50,7 +43,7 @@ public class UsersController : ControllerBase
     {
         pagParams ??= new PaginationParameters();
         var result = await _userService.GetAllUsers(pagParams);
-        return result.ToActionResult();
+        return Ok(result);
     }
 
     [HttpGet("{id:guid}")]
@@ -58,10 +51,10 @@ public class UsersController : ControllerBase
     public async Task<ActionResult<GetUserResponse>> GetUserById(Guid id)
     {
         if (id == Guid.Empty)
-            return ResultIdIsNull("User ID");
+            return BadRequest();
 
         var result = await _userService.GetUserById(id);
-        return result.ToActionResult();
+        return Ok(result);
     }
 
     [HttpPut("{id:guid}")]
@@ -69,7 +62,7 @@ public class UsersController : ControllerBase
     public async Task<ActionResult<GetUserResponse>> UpdateUser(Guid id, [FromBody] UpdateUserRequest request)
     {
         if (id == Guid.Empty)
-            return ResultIdIsNull("User ID");
+            return BadRequest();
 
         if (!ModelState.IsValid)
         {
@@ -77,7 +70,7 @@ public class UsersController : ControllerBase
         }
         
         var result = await _userService.UpdateUser(id, request);
-        return result.ToActionResult();
+        return Ok(result);
     }
 
     [HttpPut("me")]
@@ -94,15 +87,10 @@ public class UsersController : ControllerBase
     public async Task<IActionResult> DeleteUser(Guid id)
     {
         if (id == Guid.Empty)
-            return ResultIdIsNull("User ID");
+            return BadRequest();
 
         var result = await _userService.DeleteUser(id);
-        if (result.IsSuccess)
-        {
-            return NoContent();
-        }
-        var errorResult = Result<object>.Failure(result.Message!, result.ErrorType!.Value);
-        return errorResult.ToActionResult();
+        return Ok(result);
     }
 
     
@@ -120,12 +108,12 @@ public class UsersController : ControllerBase
     public async Task<ActionResult<UserEventParticipationResponse>> ParticipateInEvent(Guid eventId)
     {
         if (eventId == Guid.Empty)
-            return ResultIdIsNull("Event ID");
+            return BadRequest();
 
         Guid userId = GetCurrentUserIdFromClaims();
 
         var result = await _userService.ParticipateInEvent(userId, eventId);
-        return result.ToActionResult();
+        return Ok(result);
     }
 
     [HttpDelete("participate/{eventId:guid}")]
@@ -133,12 +121,12 @@ public class UsersController : ControllerBase
     public async Task<ActionResult<UserEventParticipationResponse>> CancelEventParticipation(Guid eventId)
     {
         if (eventId == Guid.Empty)
-            return ResultIdIsNull("Event ID");
+            return BadRequest();
                
         Guid userId = GetCurrentUserIdFromClaims();
  
         var result = await _userService.CancelEventParticipation(userId, eventId);
-        return result.ToActionResult();
+        return Ok(result);
     }
 
     [HttpGet("participated-events")]
@@ -148,6 +136,6 @@ public class UsersController : ControllerBase
         Guid userId = GetCurrentUserIdFromClaims();
 
         var result = await _userService.GetUserParticipatedEvents(userId, pagParams);
-        return result.ToActionResult();     
+        return Ok(result);    
     }
 }

@@ -24,151 +24,87 @@ public class AuthService : IAuthService
         _passwordHasher = new PasswordHasher<User>();
     }
 
-    public async Task<Result<bool>> Register(RegisterUserRequest registerDto)
+    public async Task<bool> Register(RegisterUserRequest registerDto)
     {
-        var existingUserResult = await _userRepository.GetFirstOrDefault(u => u.Email == registerDto.Email);
-        if (!existingUserResult.IsSuccess)
-        {
-            return Result<bool>.Failure(existingUserResult.Message!, existingUserResult.ErrorType!.Value);
-        }
-        if (existingUserResult.Value != null)
-        {
-            return Result<bool>.Failure("User with this email already exists.", ErrorType.AlreadyExists);
-        }
+        var existingUser = await _userRepository.GetFirstOrDefault(u => u.Email == registerDto.Email);
+
+        if (existingUser != null)
+            throw new Exception();
 
         var user = _mapper.Map<RegisterUserRequest, User>(registerDto);
-
         user.PasswordHash = _passwordHasher.HashPassword(user, registerDto.Password);
 
-        var getRoleResult = await _roleRepository.GetFirstOrDefault(r => r.Name == RoleConstants.User);
+        var getRole = await _roleRepository.GetFirstOrDefault(r => r.Name == RoleConstants.User);
+        if( getRole == null) 
+            throw new Exception();
 
-        if (getRoleResult.IsSuccess && getRoleResult.Value != null)
-        {
-            user.Roles.Add(getRoleResult.Value);
-        }
-        else
-        {
-            return Result<bool>.Failure("Default role 'User' not found. Please configure roles.", ErrorType.DatabaseError);
-        }
-
+        user.Roles.Add(getRole);
+    
         _userRepository.Insert(user);
+        await _userRepository.SaveChangesAsync(); 
 
-        var saveResult = await _userRepository.SaveChangesAsync(); 
-
-        if (!saveResult.IsSuccess)
-        {
-            return Result<bool>.Failure(saveResult.Message!,ErrorType.DatabaseError);
-        }
-
-        return Result<bool>.Success(true);
+        return true;
     }
  
-    public async Task<Result<LoginUserResponse>> Login(LoginUserRequest loginDto)
+    public async Task<LoginUserResponse> Login(LoginUserRequest loginDto)
     {
         var userResult = await _userRepository.GetFirstOrDefault(
             filter: u => u.Email == loginDto.Email,
             includeProperties: "Roles"
         );
 
-        if (!userResult.IsSuccess)
-        {
-            return Result<LoginUserResponse>.Failure(userResult.Message!, ErrorType.DatabaseError);
-        }
-        if (userResult.Value == null)
-        {
-            return Result<LoginUserResponse>.Failure("Invalid email or password.", ErrorType.InvalidInput);
-        }
-
-        var user = userResult.Value;
-
+        var user = userResult;
 
         var passwordVerificationResult = _passwordHasher.VerifyHashedPassword(user, user.PasswordHash, loginDto.Password);
         if (passwordVerificationResult == PasswordVerificationResult.Failed)
-        {
-            return Result<LoginUserResponse>.Failure("Invalid email or password.", ErrorType.InvalidInput);
-        }
-
-        var tokensResult = await _jwtProvider.GenerateTokens(user); 
-                                                            
-        if (!tokensResult.IsSuccess || tokensResult.Value == default)
-        {
-            return Result<LoginUserResponse>.Failure(tokensResult.Message!, tokensResult.ErrorType!.Value);
-        }
-
-        var response = _mapper.Map<(string accessToken, string refreshToken), LoginUserResponse>(tokensResult.Value);
-
-        return Result<LoginUserResponse>.Success(response);
+            throw new Exception();
+        
+        var tokens = await _jwtProvider.GenerateTokens(user); 
+                                                        
+        var response = _mapper.Map<(string accessToken, string refreshToken), LoginUserResponse>(tokens);
+        return response;
+        
     }
     
 
-    public async Task<Result<RefreshTokenResponse>> RefreshToken(string oldRefreshToken)
+    public async Task<RefreshTokenResponse> RefreshToken(string oldRefreshToken)
     {
-        if (string.IsNullOrEmpty(oldRefreshToken))
-            return Result<RefreshTokenResponse>.Failure("Refresh token is required.", ErrorType.InvalidInput); 
+        var refreshedTokens = await _jwtProvider.RefreshTokens(oldRefreshToken);
 
-        var refreshResult = await _jwtProvider.RefreshTokens(oldRefreshToken);
+        var response = _mapper.Map<(string accessToken, string refreshToken), RefreshTokenResponse>(refreshedTokens);
 
-        if (!refreshResult.IsSuccess || refreshResult.Value == default)
-        {
-            return Result<RefreshTokenResponse>.Failure(refreshResult.Message!,refreshResult.ErrorType!.Value);
-        }
-
-        var response = _mapper.Map<(string accessToken, string refreshToken), RefreshTokenResponse>(refreshResult.Value);
-
-        return Result<RefreshTokenResponse>.Success(response);
+        return response;
     }
 
-    public async Task<Result<bool>> Logout(string refreshToken)
+    public async Task<bool> Logout(string refreshToken)
     {
-        if (string.IsNullOrEmpty(refreshToken))
-        {  
-            return Result<bool>.Success(true);
-        }
+        var token = await _refreshTokenRepository.GetFirstOrDefault(rt => rt.Token == refreshToken);
 
-        var tokenResult = await _refreshTokenRepository.GetFirstOrDefault(rt => rt.Token == refreshToken);
-
-        if (!tokenResult.IsSuccess)
+        if (token!= null && !token.IsRevoked)
         {
-            return Result<bool>.Failure(tokenResult.Message!, ErrorType.DatabaseError);
+            token.IsRevoked = true;
+            _refreshTokenRepository.Update(token);
+            await _refreshTokenRepository.SaveChangesAsync(); 
+            return true;
         }
 
-        if (tokenResult.Value != null && !tokenResult.Value.IsRevoked)
-        {
-            tokenResult.Value.IsRevoked = true;
-            _refreshTokenRepository.Update(tokenResult.Value);
-            var saveResult = await _refreshTokenRepository.SaveChangesAsync(); 
-            if (!saveResult.IsSuccess)
-            {
-                return Result<bool>.Failure(saveResult.Message!, ErrorType.DatabaseError);
-            }
-        }
-        return Result<bool>.Success(true);
+        return false;
     }
     
-    public async Task<Result<bool>> LogoutAll(Guid userId)
+    public async Task<bool> LogoutAll(Guid userId)
     {
-         var tokensResult = await _refreshTokenRepository.GetAll(
+        var tokens = await _refreshTokenRepository.GetAll(
             filter: rt => rt.UserId == userId && !rt.IsRevoked
         );
 
-        if (!tokensResult.IsSuccess || tokensResult.Value == null)
-        {
-            return Result<bool>.Failure(tokensResult.Message!, ErrorType.DatabaseError);
-        }
-
-        foreach (var token in tokensResult.Value) 
+        foreach (var token in tokens) 
         {
             token.IsRevoked = true;
             _refreshTokenRepository.Update(token);
         }
 
-        var saveResult = await _refreshTokenRepository.SaveChangesAsync();
-        if (!saveResult.IsSuccess)
-        {
-            return Result<bool>.Failure(saveResult.Message!, ErrorType.DatabaseError);
-        }
-
-        return Result<bool>.Success(true);
+        await _refreshTokenRepository.SaveChangesAsync();
+        return true;
     }
 
 }

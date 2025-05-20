@@ -30,12 +30,7 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> Register([FromBody] RegisterUserRequest request)
     {
         var result = await _authService.Register(request);
-        if (result.IsSuccess)
-        {
-            return Created();
-        }
-        var objectResult = Result<object>.Failure(result.Message!, result.ErrorType!.Value);
-        return objectResult.ToActionResult();
+        return Ok(result);
     }
 
     [AllowAnonymous]
@@ -43,12 +38,8 @@ public class AuthController : ControllerBase
     public async Task<ActionResult> Login([FromBody] LoginUserRequest request)
     {
         var result = await _authService.Login(request);
-        if (!result.IsSuccess || result.Value == null)
-        {
-            return result.ToActionResult();
-        }
-        SetTokenCookies(result.Value.AccessToken, result.Value.RefreshToken);
-        return Ok(new { Message = "Login successful." });
+        SetTokenCookies(result.AccessToken, result.RefreshToken);
+        return Ok();
     }
 
     [Authorize(Policy ="AuthenticatedUserPolicy", AuthenticationSchemes ="RefreshScheme")]
@@ -60,14 +51,10 @@ public class AuthController : ControllerBase
         {
             return Unauthorized("Refresh token not found in cookie.");
         }
+
         var result = await _authService.RefreshToken(refreshTokenFromCookie);
-        if (!result.IsSuccess || result.Value == null)
-        {
-            ClearTokenCookies();
-            return result.ToActionResult();
-        }
-        SetTokenCookies(result.Value.AccessToken, result.Value.RefreshToken);
-        return Ok(new { Message = "Tokens refreshed successfully." });
+        SetTokenCookies(result.AccessToken, result.RefreshToken);
+        return Ok();
     }
 
     [HttpDelete("logout")]
@@ -78,13 +65,8 @@ public class AuthController : ControllerBase
         var result = await _authService.Logout(refreshTokenFromCookie ?? string.Empty);
 
         ClearTokenCookies();
+        return Ok();
 
-        if (result.IsSuccess)
-        {
-            return Ok(new { Message = "Logout successful." });
-        }
-        var objectResult = Result<string>.Failure(result.Message!, result.ErrorType!.Value);
-        return objectResult.ToActionResult();
     }
 
     [HttpDelete("logout-all")]
@@ -97,13 +79,9 @@ public class AuthController : ControllerBase
             return Unauthorized("User ID claim not found or invalid");
         }
         var result = await _authService.LogoutAll(userId);
+
         ClearTokenCookies();
-        if (result.IsSuccess)
-        {
-            return Ok(new { Message = "Logged out from all devices successfully." });
-        }
-        var objectResult = Result<string>.Failure(result.Message!, result.ErrorType!.Value);
-        return objectResult.ToActionResult();
+        return Ok();
     }
 
 }

@@ -12,17 +12,12 @@ public class CategoriesController : ControllerBase
         _categoryService = categoryService ?? throw new ArgumentNullException(nameof(categoryService));
     }
 
-    private ActionResult ResultIdIsNull(){
-        var badRequest = Result<object>.Failure("Event ID cannot be empty.", ErrorType.InvalidInput);
-        return badRequest.ToActionResult();
-    }
-
     [HttpGet]
     [AllowAnonymous] 
     public async Task<ActionResult<List<GetCategoryResponse>>> GetAllCategories()
     {
         var result = await _categoryService.GetAllCategories();
-        return result.ToActionResult();
+        return Ok(result);
     }
 
     [HttpGet("{id:guid}")]
@@ -30,10 +25,10 @@ public class CategoriesController : ControllerBase
     public async Task<ActionResult<GetCategoryResponse>> GetCategoryById(Guid id)
     {
         if (id == Guid.Empty)
-            return ResultIdIsNull();
+            return BadRequest();
 
         var result = await _categoryService.GetCategoryById(id);
-        return result.ToActionResult();
+        return Ok(result);
     }
 
     [HttpPost]
@@ -41,7 +36,7 @@ public class CategoriesController : ControllerBase
     public async Task<ActionResult<GetCategoryResponse>> CreateCategory([FromBody] CreateUpdateCategoryRequest request)
     {
         var result = await _categoryService.CreateCategory(request);
-        return result.ToActionResult();
+        return Ok(result);
     }
 
     [HttpPut("{id:guid}")]
@@ -49,10 +44,10 @@ public class CategoriesController : ControllerBase
     public async Task<ActionResult<GetCategoryResponse>> UpdateCategory(Guid id, [FromBody] CreateUpdateCategoryRequest request)
     {
         if (id == Guid.Empty)
-            return ResultIdIsNull();
+            return BadRequest();
 
         var result = await _categoryService.UpdateCategory(id, request);
-        return result.ToActionResult();
+        return Ok(result);
     }
 
     [HttpDelete("{id:guid}")]
@@ -60,14 +55,10 @@ public class CategoriesController : ControllerBase
     public async Task<IActionResult> DeleteCategory(Guid id)
     {
         if (id == Guid.Empty)
-            return ResultIdIsNull();
+            return BadRequest();
 
         var result = await _categoryService.DeleteCategory(id);
 
-        if (result.IsSuccess)
-            return NoContent(); 
-        
-        var errorResult = Result<object>.Failure(result.Message!, result.ErrorType!.Value);
-        return errorResult.ToActionResult();
+        return Ok(result);
     }
 }

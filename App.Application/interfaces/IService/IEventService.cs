@@ -2,11 +2,11 @@ using Microsoft.AspNetCore.Http;
 
 public interface IEventService
 {
-    Task<Result<PagedResponse<GetEventResponse>>> GetAllEvents(PaginationParameters? pagParams, EventFilterCriteriaRequest? criteria = null);
-    Task<Result<GetEventResponse>> GetEventById(Guid id);
-    Task<Result<GetEventResponse>> CreateEvent(CreateEventRequest request);
-    Task<Result<GetEventResponse>> UpdateEventDetails(Guid id, UpdateEventRequest request);
-    Task<Result<bool>> DeleteEvent(Guid id);
-    Task<Result<EventImageDetailsResponse>> UploadEventImage(Guid eventId, IFormFile imageFile);
-    Task<Result<bool>> DeleteEventImage(Guid eventId);
+    Task<PagedResponse<GetEventResponse>> GetAllEvents(PaginationParameters? pagParams, EventFilterCriteriaRequest? criteria = null);
+    Task<GetEventResponse> GetEventById(Guid id);
+    Task<GetEventResponse> CreateEvent(CreateEventRequest request);
+    Task<GetEventResponse> UpdateEventDetails(Guid id, UpdateEventRequest request);
+    Task<bool> DeleteEvent(Guid id);
+    Task<EventImageDetailsResponse> UploadEventImage(Guid eventId, IFormFile imageFile);
+    Task<bool> DeleteEventImage(Guid eventId);
 }

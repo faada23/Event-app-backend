@@ -11,11 +11,6 @@ public class EventsController : ControllerBase
     {
         _eventService = eventService ?? throw new ArgumentNullException(nameof(eventService));
     }
-
-    private ActionResult ResultIdIsNull(){
-        var badRequest = Result<object>.Failure("Event ID cannot be empty.", ErrorType.InvalidInput);
-        return badRequest.ToActionResult();
-    }
     
     [HttpGet]
     [AllowAnonymous]
@@ -24,7 +19,7 @@ public class EventsController : ControllerBase
         [FromQuery] EventFilterCriteriaRequest? criteria)
     {
         var result = await _eventService.GetAllEvents(pagParams, criteria);
-        return result.ToActionResult(); 
+        return Ok(result);
     }
 
     [HttpGet("{id:guid}")]
@@ -32,10 +27,10 @@ public class EventsController : ControllerBase
     public async Task<ActionResult<GetEventResponse>> GetEventById(Guid id)
     {
         if (id == Guid.Empty)
-            return ResultIdIsNull();
+            return BadRequest();
 
         var result = await _eventService.GetEventById(id);
-        return result.ToActionResult();
+        return Ok(result);
     }
 
     [HttpPost]
@@ -44,7 +39,7 @@ public class EventsController : ControllerBase
     {
         var result = await _eventService.CreateEvent(request);
 
-        return result.ToActionResult();
+        return Ok(result);
     }
 
     [HttpPut("{id:guid}")]
@@ -52,10 +47,10 @@ public class EventsController : ControllerBase
     public async Task<ActionResult<GetEventResponse>> UpdateEventDetails(Guid id, [FromBody] UpdateEventRequest request)
     {
         if (id == Guid.Empty)
-            return ResultIdIsNull();
+            return BadRequest();
 
         var result = await _eventService.UpdateEventDetails(id, request);
-        return result.ToActionResult(); 
+        return Ok(result); 
     }
 
 
@@ -64,10 +59,10 @@ public class EventsController : ControllerBase
     public async Task<IActionResult> DeleteEvent(Guid id) 
     {
         if (id == Guid.Empty)
-            return ResultIdIsNull();
+            return BadRequest();
 
         var result = await _eventService.DeleteEvent(id);
-        return result.ToActionResult();
+        return Ok(result);
     }
 
     [HttpPost("{eventId:guid}/image")]
@@ -75,18 +70,10 @@ public class EventsController : ControllerBase
     public async Task<IActionResult> UploadEventImage(Guid eventId, IFormFile imageFile) 
     {
         if (imageFile == null || imageFile.Length == 0)
-        {
             return BadRequest();
-        }
-
-        const long maxFileSize = 10 * 1024 * 1024; 
-        if (imageFile.Length > maxFileSize)
-        {
-             return BadRequest("Max file size is 10 MB");
-        }
-
+        
         var result = await _eventService.UploadEventImage(eventId, imageFile);
-         return result.ToActionResult();
+        return Ok(result);
 
     }
 
@@ -95,13 +82,7 @@ public class EventsController : ControllerBase
     public async Task<IActionResult> DeleteEventImage(Guid eventId)
     {
         var result = await _eventService.DeleteEventImage(eventId);
-
-        if (!result.IsSuccess)
-        {
-            return result.ToActionResult();
-        }
-
-        return NoContent(); 
+        return Ok(result); 
     }
 
 }

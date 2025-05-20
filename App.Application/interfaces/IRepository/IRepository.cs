@@ -5,14 +5,14 @@ public interface IRepository<T> where T : class
     void Insert(T entity);
     void Delete(T entity);
     void Update(T entity);
-    Task<Result<T?>> GetFirstOrDefault(
+    Task<T?> GetFirstOrDefault(
         Expression<Func<T, bool>> filter, 
         string? includeProperties = null);
-    Task<Result<PagedList<T>>> GetAll(
+    Task<PagedList<T>> GetAll(
         Expression<Func<T, bool>>? filter = null, 
         PaginationParameters? pagParams = null, 
         Func<IQueryable<T>, IOrderedQueryable<T>>? orderBy = null, 
         string? includeProperties = null);
 
-    Task<Result<int>> SaveChangesAsync();
+    Task<int> SaveChangesAsync();
 }
