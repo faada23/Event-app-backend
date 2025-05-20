@@ -1,5 +1,3 @@
-using System.Linq.Expressions;
-
 public class CategoryService : ICategoryService
 {
     private readonly IRepository<Category> _categoryRepository;
@@ -11,21 +9,21 @@ public class CategoryService : ICategoryService
         _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
     }
 
-    private async Task<Category?> GetCategoryByIdAsync(Guid id)
+    private async Task<Category> GetCategoryByIdAsync(Guid id)
     {
-        var category = await _categoryRepository.GetFirstOrDefault(c => c.Id == id) ?? throw new Exception();
+        var category = await _categoryRepository.GetFirstOrDefault(c => c.Id == id) 
+            ?? throw new NotFoundException("Category", id);
+            
         return category;
     }
 
-    private async Task<bool> NoCategoryNameConflictCheck(string name, Guid? excludeId = null)
+    private async Task CategoryNameConflictCheck(string name, Guid? excludeId = null)
     {
         var query = await _categoryRepository.GetFirstOrDefault(c =>
             c.Name == name && (!excludeId.HasValue || c.Id != excludeId));
 
         if (query != null)
-            return false;
-        
-        return true;
+            throw new AlreadyExistsException("Category", name);
     }
 
     public async Task<PagedResponse<GetCategoryResponse>> GetAllCategories()
@@ -35,11 +33,10 @@ public class CategoryService : ICategoryService
         );
 
         var pagedResponse = _mapper.Map<PagedList<Category>, PagedResponse<GetCategoryResponse>>(categoriesResult);
-
         return pagedResponse;
     }
 
-    public async Task<GetCategoryResponse?> GetCategoryById(Guid id)
+    public async Task<GetCategoryResponse> GetCategoryById(Guid id)
     {
         var categoryEntity = await GetCategoryByIdAsync(id);
 
@@ -48,9 +45,7 @@ public class CategoryService : ICategoryService
 
     public async Task<GetCategoryResponse> CreateCategory(CreateUpdateCategoryRequest request)
     {
-        var noNameConflict = await NoCategoryNameConflictCheck(request.Name);
-        if (!noNameConflict)
-            throw new Exception();
+        await CategoryNameConflictCheck(request.Name);
 
         var newCategory = _mapper.Map<CreateUpdateCategoryRequest, Category>(request);
 
@@ -62,14 +57,12 @@ public class CategoryService : ICategoryService
 
     public async Task<GetCategoryResponse> UpdateCategory(Guid id, CreateUpdateCategoryRequest request)
     {
-        var category = await GetCategoryByIdAsync(id) ?? throw new Exception();
+        var category = await GetCategoryByIdAsync(id);
 
         if (category.Name == request.Name)
             return _mapper.Map<Category, GetCategoryResponse>(category);
         
-        var noNameConflict = await NoCategoryNameConflictCheck(request.Name, id);
-        if(!noNameConflict)
-            throw new Exception();
+        await CategoryNameConflictCheck(request.Name, id);
 
         category.Name = request.Name;
         _categoryRepository.Update(category);
@@ -80,8 +73,8 @@ public class CategoryService : ICategoryService
 
     public async Task<bool> DeleteCategory(Guid id)
     {
-        var category = await GetCategoryByIdAsync(id) ?? throw new Exception();
-
+        var category = await GetCategoryByIdAsync(id);
+    
         _categoryRepository.Delete(category);
         await _categoryRepository.SaveChangesAsync();
 

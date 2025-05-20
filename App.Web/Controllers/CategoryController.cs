@@ -17,6 +17,7 @@ public class CategoriesController : ControllerBase
     public async Task<ActionResult<List<GetCategoryResponse>>> GetAllCategories()
     {
         var result = await _categoryService.GetAllCategories();
+        
         return Ok(result);
     }
 
@@ -24,10 +25,8 @@ public class CategoriesController : ControllerBase
     [AllowAnonymous] 
     public async Task<ActionResult<GetCategoryResponse>> GetCategoryById(Guid id)
     {
-        if (id == Guid.Empty)
-            return BadRequest();
-
         var result = await _categoryService.GetCategoryById(id);
+
         return Ok(result);
     }
 
@@ -36,6 +35,7 @@ public class CategoriesController : ControllerBase
     public async Task<ActionResult<GetCategoryResponse>> CreateCategory([FromBody] CreateUpdateCategoryRequest request)
     {
         var result = await _categoryService.CreateCategory(request);
+
         return Ok(result);
     }
 
@@ -43,10 +43,8 @@ public class CategoriesController : ControllerBase
     [Authorize(Policy ="AdminPolicy")]
     public async Task<ActionResult<GetCategoryResponse>> UpdateCategory(Guid id, [FromBody] CreateUpdateCategoryRequest request)
     {
-        if (id == Guid.Empty)
-            return BadRequest();
-
         var result = await _categoryService.UpdateCategory(id, request);
+
         return Ok(result);
     }
 
@@ -54,9 +52,6 @@ public class CategoriesController : ControllerBase
     [Authorize(Policy ="AdminPolicy")]
     public async Task<IActionResult> DeleteCategory(Guid id)
     {
-        if (id == Guid.Empty)
-            return BadRequest();
-
         var result = await _categoryService.DeleteCategory(id);
 
         return Ok(result);

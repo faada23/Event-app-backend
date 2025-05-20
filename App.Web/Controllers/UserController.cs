@@ -41,8 +41,8 @@ public class UsersController : ControllerBase
     [Authorize(Policy = "AdminPolicy")]
     public async Task<ActionResult<PagedList<GetUserResponse>>> GetAllUsers([FromQuery] PaginationParameters? pagParams)
     {
-        pagParams ??= new PaginationParameters();
         var result = await _userService.GetAllUsers(pagParams);
+
         return Ok(result);
     }
 
@@ -50,10 +50,8 @@ public class UsersController : ControllerBase
     [Authorize(Policy = "AdminPolicy")]
     public async Task<ActionResult<GetUserResponse>> GetUserById(Guid id)
     {
-        if (id == Guid.Empty)
-            return BadRequest();
-
         var result = await _userService.GetUserById(id);
+
         return Ok(result);
     }
 
@@ -61,15 +59,8 @@ public class UsersController : ControllerBase
     [Authorize(Policy = "AdminOrSelfPolicy")]
     public async Task<ActionResult<GetUserResponse>> UpdateUser(Guid id, [FromBody] UpdateUserRequest request)
     {
-        if (id == Guid.Empty)
-            return BadRequest();
-
-        if (!ModelState.IsValid)
-        {
-            return BadRequest(ModelState);
-        }
-        
         var result = await _userService.UpdateUser(id, request);
+
         return Ok(result);
     }
 
@@ -86,10 +77,8 @@ public class UsersController : ControllerBase
     [Authorize(Policy ="AuthenticatedUserPolicy")]
     public async Task<IActionResult> DeleteUser(Guid id)
     {
-        if (id == Guid.Empty)
-            return BadRequest();
-
         var result = await _userService.DeleteUser(id);
+
         return Ok(result);
     }
 
@@ -107,9 +96,6 @@ public class UsersController : ControllerBase
     [Authorize(Policy ="AuthenticatedUserPolicy")]
     public async Task<ActionResult<UserEventParticipationResponse>> ParticipateInEvent(Guid eventId)
     {
-        if (eventId == Guid.Empty)
-            return BadRequest();
-
         Guid userId = GetCurrentUserIdFromClaims();
 
         var result = await _userService.ParticipateInEvent(userId, eventId);
@@ -119,10 +105,7 @@ public class UsersController : ControllerBase
     [HttpDelete("participate/{eventId:guid}")]
     [Authorize(Policy ="AuthenticatedUserPolicy")]
     public async Task<ActionResult<UserEventParticipationResponse>> CancelEventParticipation(Guid eventId)
-    {
-        if (eventId == Guid.Empty)
-            return BadRequest();
-               
+    {               
         Guid userId = GetCurrentUserIdFromClaims();
  
         var result = await _userService.CancelEventParticipation(userId, eventId);

@@ -62,7 +62,7 @@ public class AuthController : ControllerBase
     public async Task<ActionResult> Logout()
     {
         var refreshTokenFromCookie = Request.Cookies["RefreshTokenCookie"];
-        var result = await _authService.Logout(refreshTokenFromCookie ?? string.Empty);
+        await _authService.Logout(refreshTokenFromCookie ?? string.Empty);
 
         ClearTokenCookies();
         return Ok();
@@ -78,7 +78,7 @@ public class AuthController : ControllerBase
         {
             return Unauthorized("User ID claim not found or invalid");
         }
-        var result = await _authService.LogoutAll(userId);
+        await _authService.LogoutAll(userId);
 
         ClearTokenCookies();
         return Ok();

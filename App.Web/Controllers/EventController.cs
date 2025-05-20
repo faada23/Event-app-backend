@@ -26,10 +26,8 @@ public class EventsController : ControllerBase
     [AllowAnonymous] 
     public async Task<ActionResult<GetEventResponse>> GetEventById(Guid id)
     {
-        if (id == Guid.Empty)
-            return BadRequest();
-
         var result = await _eventService.GetEventById(id);
+
         return Ok(result);
     }
 
@@ -46,10 +44,8 @@ public class EventsController : ControllerBase
     [Authorize(Policy ="AdminPolicy")]
     public async Task<ActionResult<GetEventResponse>> UpdateEventDetails(Guid id, [FromBody] UpdateEventRequest request)
     {
-        if (id == Guid.Empty)
-            return BadRequest();
-
         var result = await _eventService.UpdateEventDetails(id, request);
+
         return Ok(result); 
     }
 
@@ -58,23 +54,18 @@ public class EventsController : ControllerBase
     [Authorize(Policy ="AdminPolicy")]
     public async Task<IActionResult> DeleteEvent(Guid id) 
     {
-        if (id == Guid.Empty)
-            return BadRequest();
-
         var result = await _eventService.DeleteEvent(id);
+
         return Ok(result);
     }
 
     [HttpPost("{eventId:guid}/image")]
     [Authorize(Policy ="AdminPolicy")]
     public async Task<IActionResult> UploadEventImage(Guid eventId, IFormFile imageFile) 
-    {
-        if (imageFile == null || imageFile.Length == 0)
-            return BadRequest();
-        
+    {        
         var result = await _eventService.UploadEventImage(eventId, imageFile);
-        return Ok(result);
 
+        return Ok(result);
     }
 
     [HttpDelete("{eventId:guid}/image")]
@@ -82,6 +73,7 @@ public class EventsController : ControllerBase
     public async Task<IActionResult> DeleteEventImage(Guid eventId)
     {
         var result = await _eventService.DeleteEventImage(eventId);
+        
         return Ok(result); 
     }
 

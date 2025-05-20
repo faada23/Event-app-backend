@@ -23,19 +23,23 @@ public class UserService : IUserService
 
     public async Task<GetUserResponse> GetUserById(Guid id)
     {
-        var userResult = await _userRepository.GetFirstOrDefault(filter: u => u.Id == id) ?? throw new Exception();
+        var userResult = await _userRepository.GetFirstOrDefault(filter: u => u.Id == id)
+            ?? throw new NotFoundException("User", id);
 
         return _mapper.Map<User, GetUserResponse>(userResult);
     }
 
     public async Task<GetUserResponse> UpdateUser(Guid id, UpdateUserRequest request)
     {
-        var userToUpdate = await _userRepository.GetFirstOrDefault(u => u.Id == id) ?? throw new Exception();
+        var userToUpdate = await _userRepository.GetFirstOrDefault(u => u.Id == id)
+            ?? throw new NotFoundException("User", id);
 
         if (userToUpdate.Email != request.Email)
         {
-            var existingEmail = await _userRepository.GetFirstOrDefault(u => u.Email == request.Email && u.Id != id)
-                ?? throw new Exception();
+            var existingEmail = await _userRepository.GetFirstOrDefault(u => u.Email == request.Email && u.Id != id);
+
+            if(existingEmail != null)
+                throw new AlreadyExistsException("User", request.Email);
         }
 
         _mapper.Map(request, userToUpdate);
@@ -48,7 +52,8 @@ public class UserService : IUserService
 
     public async Task<bool> DeleteUser(Guid id)
     {
-        var userToDelete = await _userRepository.GetFirstOrDefault(filter: u => u.Id == id) ?? throw new Exception();
+        var userToDelete = await _userRepository.GetFirstOrDefault(filter: u => u.Id == id)
+            ?? throw new NotFoundException("User", id);
 
         _userRepository.Delete(userToDelete);
         await _userRepository.SaveChangesAsync();
@@ -58,15 +63,20 @@ public class UserService : IUserService
 
     public async Task<UserEventParticipationResponse> ParticipateInEvent(Guid userId, Guid eventId)
     {
-        var user = await _userRepository.GetFirstOrDefault(u => u.Id == userId) ?? throw new Exception();
-        var currentEvent = await _eventRepository.GetFirstOrDefault(e => e.Id == eventId) ?? throw new Exception();
+        var user = await _userRepository.GetFirstOrDefault(u => u.Id == userId) 
+            ?? throw new NotFoundException("User",userId);
+        var currentEvent = await _eventRepository.GetFirstOrDefault(
+            filter: e => e.Id == eventId,
+            includeProperties: "EventParticipants") 
+            ?? throw new NotFoundException("Event",eventId);
 
-        var existingParticipation = await _eventParticipantRepository.GetFirstOrDefault(
-            ep => ep.UserId == userId && ep.EventId == eventId
-        );
+        if(currentEvent.EventParticipants.Count >= currentEvent.MaxParticipants)
+            throw new BadRequestException("The maximum number of participants has been reached.");
+        
+        var existingParticipation = currentEvent.EventParticipants.Where(x => x.UserId == userId);
 
-        if(existingParticipation != null)
-            throw new Exception();
+        if(existingParticipation.Count() != 0)
+            throw new AlreadyExistsException("EventParticipant",$"eventId: {eventId}, userId: {userId}");
 
         var newParticipation = new EventParticipant
         {
@@ -97,7 +107,7 @@ public class UserService : IUserService
     {
         var participationResult = await _eventParticipantRepository.GetFirstOrDefault(
             ep => ep.UserId == userId && ep.EventId == eventId
-        ) ?? throw new Exception();
+        ) ?? throw new NotFoundException("EventParticipant", $"eventId: {eventId}, userId: {userId}");
 
         _eventParticipantRepository.Delete(participationResult);
         await _eventParticipantRepository.SaveChangesAsync();
@@ -107,7 +117,8 @@ public class UserService : IUserService
 
     public async Task<PagedResponse<UserParticipatedEventResponse>> GetUserParticipatedEvents(Guid userId, PaginationParameters? pagParams)
     {
-        var userExistsResult = await _userRepository.GetFirstOrDefault(u => u.Id == userId) ?? throw new Exception();
+        var userExistsResult = await _userRepository.GetFirstOrDefault(u => u.Id == userId)
+            ?? throw new NotFoundException("User",userId);
 
         var participations = await _eventParticipantRepository.GetAll(
             pagParams: pagParams,
