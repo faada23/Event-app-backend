@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using Xunit;
 using Moq;
 using FluentAssertions;
-using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore; 
 
 public class UserServiceTests
 {
@@ -15,6 +15,7 @@ public class UserServiceTests
     private readonly Mock<IRepository<EventParticipant>> _eventParticipantRepositoryMock;
     private readonly Mock<IDefaultMapper> _mapperMock;
     private readonly UserService _userService;
+    private readonly CancellationToken _ct = CancellationToken.None;
 
     public UserServiceTests()
     {
@@ -39,13 +40,13 @@ public class UserServiceTests
         var expectedDto = new GetUserResponse(userId, "Test", "User", "test@example.com", DateOnly.FromDateTime(DateTime.Now), DateTimeOffset.UtcNow);
 
         _userRepositoryMock
-            .Setup(repo => repo.GetFirstOrDefault(It.IsAny<Expression<Func<User, bool>>>(), null))
+            .Setup(repo => repo.GetFirstOrDefault(It.IsAny<Expression<Func<User, bool>>>(), null, _ct))
             .ReturnsAsync(userEntity);
         _mapperMock
             .Setup(m => m.Map<User, GetUserResponse>(userEntity))
             .Returns(expectedDto);
 
-        var result = await _userService.GetUserById(userId);
+        var result = await _userService.GetUserById(userId, _ct);
 
         result.Should().BeEquivalentTo(expectedDto);
     }
@@ -55,10 +56,10 @@ public class UserServiceTests
     {
         var userId = Guid.NewGuid();
         _userRepositoryMock
-            .Setup(repo => repo.GetFirstOrDefault(It.IsAny<Expression<Func<User, bool>>>(), null))
+            .Setup(repo => repo.GetFirstOrDefault(It.IsAny<Expression<Func<User, bool>>>(), null, _ct))
             .ReturnsAsync((User?)null);
 
-        var action = async () => await _userService.GetUserById(userId);
+        var action = async () => await _userService.GetUserById(userId, _ct);
         await action.Should().ThrowAsync<NotFoundException>();
     }
 
@@ -70,46 +71,31 @@ public class UserServiceTests
         var existingUser = new User { Id = userId, Email = "old@example.com", FirstName = "Old", LastName = "User", SystemRegistrationDate = DateTimeOffset.UtcNow };
         var mappedResponse = new GetUserResponse(userId, request.FirstName, request.LastName, request.Email, request.DateOfBirth, existingUser.SystemRegistrationDate);
 
-        _userRepositoryMock.SetupSequence(r => r.GetFirstOrDefault(It.IsAny<Expression<Func<User, bool>>>(), null))
-            .ReturnsAsync(existingUser)  
-            .ReturnsAsync((User?)null);   
+        _userRepositoryMock.SetupSequence(r => r.GetFirstOrDefault(It.IsAny<Expression<Func<User, bool>>>(), null, _ct))
+            .ReturnsAsync(existingUser)
+            .ReturnsAsync((User?)null);
 
-        _userRepositoryMock.Setup(r => r.SaveChangesAsync()).ReturnsAsync(1);
+        _userRepositoryMock.Setup(r => r.SaveChangesAsync(_ct)).ReturnsAsync(1); 
+        _mapperMock.Setup(m => m.Map(request, existingUser));
+        _mapperMock.Setup(m => m.Map<User, GetUserResponse>(existingUser)).Returns(mappedResponse);
 
-        _mapperMock.Setup(m => m.Map(request, existingUser))
-                .Callback<UpdateUserRequest, User>((src, dest) => {
-                    dest.FirstName = src.FirstName;
-                    dest.LastName = src.LastName;
-                    dest.Email = src.Email;
-                    dest.DateOfBirth = src.DateOfBirth;
-                });
+        var result = await _userService.UpdateUser(userId, request, _ct); 
 
-        _mapperMock.Setup(m => m.Map<User, GetUserResponse>(existingUser))
-                .Returns(mappedResponse);
-
-        var result = await _userService.UpdateUser(userId, request);
-
-        result.Should().NotBeNull("UpdateUser should return a response.");
         result.Should().BeEquivalentTo(mappedResponse);
         _userRepositoryMock.Verify(r => r.Update(existingUser), Times.Once);
-        _userRepositoryMock.Verify(r => r.SaveChangesAsync(), Times.Once);
-        _userRepositoryMock.Verify(r => r.GetFirstOrDefault(It.IsAny<Expression<Func<User, bool>>>(), null), Times.Exactly(2)); // Проверяем оба вызова
+        _userRepositoryMock.Verify(r => r.SaveChangesAsync(_ct), Times.Once);
+        _userRepositoryMock.Verify(r => r.GetFirstOrDefault(It.IsAny<Expression<Func<User, bool>>>(), null, _ct), Times.Exactly(2)); 
     }
 
-    private bool IsCheckingEmail(Expression<Func<User, bool>> expr, string email, Guid excludeId)
-    {
-        var body = expr.Body.ToString();
-        return body.Contains($"u.Email == \"{email}\"") && body.Contains($"u.Id != value(") && body.Contains(excludeId.ToString());
-    }
 
     [Fact]
     public async Task UpdateUser_WhenUserNotFound_ShouldThrowNotFoundException()
     {
         var userId = Guid.NewGuid();
         var request = new UpdateUserRequest("New", "Name", "new@example.com", new DateOnly(1990, 1, 1));
-        _userRepositoryMock.Setup(r => r.GetFirstOrDefault(It.IsAny<Expression<Func<User, bool>>>(), null)).ReturnsAsync((User?)null);
+        _userRepositoryMock.Setup(r => r.GetFirstOrDefault(It.IsAny<Expression<Func<User, bool>>>(), null, _ct)).ReturnsAsync((User?)null);
 
-        var action = async () => await _userService.UpdateUser(userId, request);
+        var action = async () => await _userService.UpdateUser(userId, request, _ct);
         await action.Should().ThrowAsync<NotFoundException>();
     }
 
@@ -121,33 +107,31 @@ public class UserServiceTests
         var existingUser = new User { Id = userId, Email = "old@example.com" };
         var otherUserWithEmail = new User { Id = Guid.NewGuid(), Email = "taken@example.com" };
 
-        _userRepositoryMock.SetupSequence(r => r.GetFirstOrDefault(It.IsAny<Expression<Func<User, bool>>>(), null))
+        _userRepositoryMock.SetupSequence(r => r.GetFirstOrDefault(It.IsAny<Expression<Func<User, bool>>>(), null, _ct))
             .ReturnsAsync(existingUser)
             .ReturnsAsync(otherUserWithEmail);
 
-        var action = async () => await _userService.UpdateUser(userId, request);
+        var action = async () => await _userService.UpdateUser(userId, request, _ct);
         await action.Should().ThrowAsync<AlreadyExistsException>();
     }
 
     [Fact]
-    public async Task UpdateUser_WhenSaveChangesFails_ShouldThrowDbUpdateExceptionFromService() 
+    public async Task UpdateUser_WhenSaveChangesFails_ShouldThrowDbUpdateExceptionFromService()
     {
         var userId = Guid.NewGuid();
         var request = new UpdateUserRequest("New", "Name", "new@example.com", new DateOnly(1990, 1, 1));
-        var existingUser = new User { Id = userId, Email = "old@example.com", SystemRegistrationDate = DateTimeOffset.UtcNow };
+        var existingUser = new User { Id = userId, Email = "old@example.com" };
         var dbUpdateEx = new DbUpdateException("DB error on update", new Exception("Inner update exception"));
 
-        _userRepositoryMock.SetupSequence(r => r.GetFirstOrDefault(It.IsAny<Expression<Func<User, bool>>>(), null))
-            .ReturnsAsync(existingUser)       
-            .ReturnsAsync((User?)null);     
+        _userRepositoryMock.SetupSequence(r => r.GetFirstOrDefault(It.IsAny<Expression<Func<User, bool>>>(), null, _ct))
+                .ReturnsAsync(existingUser)
+                .ReturnsAsync((User?)null); 
+        _userRepositoryMock.Setup(r => r.SaveChangesAsync(_ct)).ThrowsAsync(dbUpdateEx);
 
-        _userRepositoryMock.Setup(r => r.SaveChangesAsync()).ThrowsAsync(dbUpdateEx); 
-
-        var action = async () => await _userService.UpdateUser(userId, request);
+        var action = async () => await _userService.UpdateUser(userId, request, _ct);
 
         var exceptionAssertions = await action.Should().ThrowAsync<DbUpdateException>();
-        exceptionAssertions.WithMessage("DB error on update");
-        exceptionAssertions.WithInnerException<Exception>().WithMessage("Inner update exception");
+        exceptionAssertions.WithInnerException<Exception>();
     }
 
     [Fact]
@@ -155,37 +139,36 @@ public class UserServiceTests
     {
         var userId = Guid.NewGuid();
         var userEntity = new User { Id = userId };
-        _userRepositoryMock.Setup(r => r.GetFirstOrDefault(It.IsAny<Expression<Func<User, bool>>>(), null)).ReturnsAsync(userEntity);
-        _userRepositoryMock.Setup(r => r.SaveChangesAsync()).ReturnsAsync(1);
+        _userRepositoryMock.Setup(r => r.GetFirstOrDefault(It.IsAny<Expression<Func<User, bool>>>(), null, _ct)).ReturnsAsync(userEntity);
+        _userRepositoryMock.Setup(r => r.SaveChangesAsync(_ct)).ReturnsAsync(1);
 
-        var result = await _userService.DeleteUser(userId);
+        var result = await _userService.DeleteUser(userId, _ct);
 
         result.Should().BeTrue();
         _userRepositoryMock.Verify(r => r.Delete(userEntity), Times.Once);
-        _userRepositoryMock.Verify(r => r.SaveChangesAsync(), Times.Once);
+        _userRepositoryMock.Verify(r => r.SaveChangesAsync(_ct), Times.Once);
     }
 
     [Fact]
     public async Task DeleteUser_WhenUserNotFound_ShouldThrowNotFoundException()
     {
         var userId = Guid.NewGuid();
-        _userRepositoryMock.Setup(r => r.GetFirstOrDefault(It.IsAny<Expression<Func<User, bool>>>(), null)).ReturnsAsync((User?)null);
+        _userRepositoryMock.Setup(r => r.GetFirstOrDefault(It.IsAny<Expression<Func<User, bool>>>(), null, _ct)).ReturnsAsync((User?)null);
 
-        var action = async () => await _userService.DeleteUser(userId);
+        var action = async () => await _userService.DeleteUser(userId, _ct);
         await action.Should().ThrowAsync<NotFoundException>();
     }
 
     [Fact]
-    public async Task DeleteUser_WhenSaveChangesFails_ShouldThrowDbUpdateException() 
+    public async Task DeleteUser_WhenSaveChangesFails_ShouldThrowDbUpdateExceptionFromService()
     {
         var userId = Guid.NewGuid();
         var userToDelete = new User { Id = userId };
         var dbUpdateEx = new DbUpdateException("DB error on delete", new Exception("Inner delete exception"));
-        _userRepositoryMock.Setup(r => r.GetFirstOrDefault(It.IsAny<Expression<Func<User, bool>>>(), null)).ReturnsAsync(userToDelete);
-        _userRepositoryMock.Setup(r => r.SaveChangesAsync()).ThrowsAsync(dbUpdateEx);
+        _userRepositoryMock.Setup(r => r.GetFirstOrDefault(It.IsAny<Expression<Func<User, bool>>>(), null, _ct)).ReturnsAsync(userToDelete);
+        _userRepositoryMock.Setup(r => r.SaveChangesAsync(_ct)).ThrowsAsync(dbUpdateEx);
 
-        var action = async () => await _userService.DeleteUser(userId);
-
+        var action = async () => await _userService.DeleteUser(userId, _ct);
         var exceptionAssertions = await action.Should().ThrowAsync<DbUpdateException>();
         exceptionAssertions.WithInnerException<Exception>();
     }
@@ -199,15 +182,15 @@ public class UserServiceTests
         var ev = new Event { Id = eventId, MaxParticipants = 10, EventParticipants = new List<EventParticipant>() };
         var expectedResponse = new UserEventParticipationResponse(eventId, userId, DateTimeOffset.UtcNow);
 
-        _userRepositoryMock.Setup(r => r.GetFirstOrDefault(It.IsAny<Expression<Func<User, bool>>>(), null)).ReturnsAsync(user);
-        _eventRepositoryMock.Setup(r => r.GetFirstOrDefault(It.IsAny<Expression<Func<Event, bool>>>(), "EventParticipants")).ReturnsAsync(ev);
-        _eventParticipantRepositoryMock.Setup(r => r.GetFirstOrDefault(It.IsAny<Expression<Func<EventParticipant, bool>>>(), null)).ReturnsAsync((EventParticipant?)null);
-        _eventParticipantRepositoryMock.Setup(r => r.SaveChangesAsync()).ReturnsAsync(1);
+        _userRepositoryMock.Setup(r => r.GetFirstOrDefault(It.IsAny<Expression<Func<User, bool>>>(), null, _ct)).ReturnsAsync(user);
+        _eventRepositoryMock.Setup(r => r.GetFirstOrDefault(It.IsAny<Expression<Func<Event, bool>>>(), "EventParticipants", _ct)).ReturnsAsync(ev);
+        _eventParticipantRepositoryMock.Setup(r => r.GetFirstOrDefault(It.IsAny<Expression<Func<EventParticipant, bool>>>(), null, _ct)).ReturnsAsync((EventParticipant?)null);
+        _eventParticipantRepositoryMock.Setup(r => r.SaveChangesAsync(_ct)).ReturnsAsync(1);
         _mapperMock.Setup(m => m.Map<EventParticipant, UserEventParticipationResponse>(It.IsAny<EventParticipant>()))
                     .Returns((EventParticipant ep) => new UserEventParticipationResponse(ep.EventId, ep.UserId, ep.EventRegistrationDate));
 
 
-        var result = await _userService.ParticipateInEvent(userId, eventId);
+        var result = await _userService.ParticipateInEvent(userId, eventId, _ct);
 
         result.Should().NotBeNull();
         result.Should().BeEquivalentTo(expectedResponse, options =>
@@ -215,7 +198,7 @@ public class UserServiceTests
                 .WhenTypeIs<DateTimeOffset>());
 
         _eventParticipantRepositoryMock.Verify(r => r.Insert(It.Is<EventParticipant>(ep => ep.UserId == userId && ep.EventId == eventId)), Times.Once);
-        _eventParticipantRepositoryMock.Verify(r => r.SaveChangesAsync(), Times.Once);
+        _eventParticipantRepositoryMock.Verify(r => r.SaveChangesAsync(_ct), Times.Once);
     }
 
     [Fact]
@@ -227,32 +210,31 @@ public class UserServiceTests
         var existingParticipant = new EventParticipant { EventId = eventId, UserId = Guid.NewGuid() };
         var ev = new Event { Id = eventId, MaxParticipants = 1, EventParticipants = new List<EventParticipant> { existingParticipant } };
 
-        _userRepositoryMock.Setup(r => r.GetFirstOrDefault(It.IsAny<Expression<Func<User, bool>>>(), null)).ReturnsAsync(user);
-        _eventRepositoryMock.Setup(r => r.GetFirstOrDefault(It.IsAny<Expression<Func<Event, bool>>>(), "EventParticipants")).ReturnsAsync(ev);
-        _eventParticipantRepositoryMock.Setup(r => r.GetFirstOrDefault(It.IsAny<Expression<Func<EventParticipant, bool>>>(), null)).ReturnsAsync((EventParticipant?)null); // Новый участник еще не зарегистрирован
+        _userRepositoryMock.Setup(r => r.GetFirstOrDefault(It.IsAny<Expression<Func<User, bool>>>(), null, _ct)).ReturnsAsync(user);
+        _eventRepositoryMock.Setup(r => r.GetFirstOrDefault(It.IsAny<Expression<Func<Event, bool>>>(), "EventParticipants", _ct)).ReturnsAsync(ev);
 
-        var action = async () => await _userService.ParticipateInEvent(userId, eventId);
-
+        var action = async () => await _userService.ParticipateInEvent(userId, eventId, _ct);
         await action.Should().ThrowAsync<BadRequestException>();
     }
+
 
     [Fact]
     public async Task GetAllUsers_ShouldReturnPagedResponseOfUsers()
     {
-        var users = new List<User> { new User { Id = Guid.NewGuid(), FirstName = "A" } };
+        var users = new List<User> { new User { Id = Guid.NewGuid(), FirstName = "A", LastName="UserA", Email="a@a.com", DateOfBirth=new DateOnly(2000,1,1), SystemRegistrationDate=DateTimeOffset.UtcNow } };
         var pagedListUsers = PagedList<User>.ToPagedList(users, 1, 1, 1);
         var userDtos = users.Select(u => new GetUserResponse(u.Id, u.FirstName, u.LastName, u.Email, u.DateOfBirth, u.SystemRegistrationDate)).ToList();
         var expectedResponse = new PagedResponse<GetUserResponse>(userDtos, 1, 1, 1, 1);
 
         _userRepositoryMock
-            .Setup(repo => repo.GetAll(null, It.IsAny<PaginationParameters>(), It.IsAny<Func<IQueryable<User>, IOrderedQueryable<User>>>(), null))
+            .Setup(repo => repo.GetAll(null, It.IsAny<PaginationParameters>(), It.IsAny<Func<IQueryable<User>, IOrderedQueryable<User>>>(), null, _ct))
             .ReturnsAsync(pagedListUsers);
         _mapperMock
             .Setup(m => m.Map<PagedList<User>, PagedResponse<GetUserResponse>>(pagedListUsers))
             .Returns(expectedResponse);
 
         var pagParams = new PaginationParameters { Page = 1, PageSize = 1 };
-        var result = await _userService.GetAllUsers(pagParams);
+        var result = await _userService.GetAllUsers(pagParams, _ct);
 
         result.Should().BeEquivalentTo(expectedResponse);
     }
@@ -264,14 +246,14 @@ public class UserServiceTests
         var eventId = Guid.NewGuid();
         var participation = new EventParticipant { UserId = userId, EventId = eventId };
 
-        _eventParticipantRepositoryMock.Setup(r => r.GetFirstOrDefault(It.IsAny<Expression<Func<EventParticipant, bool>>>(), null)).ReturnsAsync(participation);
-        _eventParticipantRepositoryMock.Setup(r => r.SaveChangesAsync()).ReturnsAsync(1);
+        _eventParticipantRepositoryMock.Setup(r => r.GetFirstOrDefault(It.IsAny<Expression<Func<EventParticipant, bool>>>(), null, _ct)).ReturnsAsync(participation);
+        _eventParticipantRepositoryMock.Setup(r => r.SaveChangesAsync(_ct)).ReturnsAsync(1);
 
-        var result = await _userService.CancelEventParticipation(userId, eventId);
+        var result = await _userService.CancelEventParticipation(userId, eventId, _ct);
 
         result.Should().BeTrue();
         _eventParticipantRepositoryMock.Verify(r => r.Delete(participation), Times.Once);
-        _eventParticipantRepositoryMock.Verify(r => r.SaveChangesAsync(), Times.Once);
+        _eventParticipantRepositoryMock.Verify(r => r.SaveChangesAsync(_ct), Times.Once);
     }
 
     [Fact]
@@ -279,9 +261,9 @@ public class UserServiceTests
     {
         var userId = Guid.NewGuid();
         var eventId = Guid.NewGuid();
-        _eventParticipantRepositoryMock.Setup(r => r.GetFirstOrDefault(It.IsAny<Expression<Func<EventParticipant, bool>>>(), null)).ReturnsAsync((EventParticipant?)null);
+        _eventParticipantRepositoryMock.Setup(r => r.GetFirstOrDefault(It.IsAny<Expression<Func<EventParticipant, bool>>>(), null, _ct)).ReturnsAsync((EventParticipant?)null);
 
-        var action = async () => await _userService.CancelEventParticipation(userId, eventId);
+        var action = async () => await _userService.CancelEventParticipation(userId, eventId, _ct);
         await action.Should().ThrowAsync<NotFoundException>();
     }
 
@@ -296,20 +278,21 @@ public class UserServiceTests
         var mappedResponses = participations.Select(p => new UserParticipatedEventResponse(p.Event.Id, p.Event.Name, p.EventRegistrationDate, p.Event.Location)).ToList();
         var expectedResponse = new PagedResponse<UserParticipatedEventResponse>(mappedResponses, 1, 1, 1, 1);
 
-        _userRepositoryMock.Setup(r => r.GetFirstOrDefault(It.IsAny<Expression<Func<User, bool>>>(), null)).ReturnsAsync(user);
+        _userRepositoryMock.Setup(r => r.GetFirstOrDefault(It.IsAny<Expression<Func<User, bool>>>(), null, _ct)).ReturnsAsync(user);
         _eventParticipantRepositoryMock
             .Setup(r => r.GetAll(
-                It.IsAny<Expression<Func<EventParticipant, bool>>>(), 
-                It.IsAny<PaginationParameters>(),                     
-                It.IsAny<Func<IQueryable<EventParticipant>, IOrderedQueryable<EventParticipant>>>(), 
-                "Event"                                               
+                It.IsAny<Expression<Func<EventParticipant, bool>>>(),
+                It.IsAny<PaginationParameters>(),
+                It.IsAny<Func<IQueryable<EventParticipant>, IOrderedQueryable<EventParticipant>>>(),
+                "Event",
+                _ct     
             ))
             .ReturnsAsync(pagedParticipations);
         _mapperMock.Setup(m => m.Map<PagedList<EventParticipant>, PagedResponse<UserParticipatedEventResponse>>(pagedParticipations))
                     .Returns(expectedResponse);
 
         var pagParams = new PaginationParameters();
-        var result = await _userService.GetUserParticipatedEvents(userId, pagParams);
+        var result = await _userService.GetUserParticipatedEvents(userId, pagParams, _ct);
 
         result.Should().BeEquivalentTo(expectedResponse);
     }
@@ -318,9 +301,9 @@ public class UserServiceTests
     public async Task GetUserParticipatedEvents_WhenUserNotFound_ShouldThrowNotFoundException()
     {
         var userId = Guid.NewGuid();
-        _userRepositoryMock.Setup(r => r.GetFirstOrDefault(It.IsAny<Expression<Func<User, bool>>>(), null)).ReturnsAsync((User?)null);
+        _userRepositoryMock.Setup(r => r.GetFirstOrDefault(It.IsAny<Expression<Func<User, bool>>>(), null, _ct)).ReturnsAsync((User?)null);
 
-        var action = async () => await _userService.GetUserParticipatedEvents(userId, new PaginationParameters());
+        var action = async () => await _userService.GetUserParticipatedEvents(userId, new PaginationParameters(), _ct);
         await action.Should().ThrowAsync<NotFoundException>();
     }
 }

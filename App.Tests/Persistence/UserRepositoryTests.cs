@@ -13,7 +13,8 @@ namespace App.Tests.Persistence
     public class UserRepositoryTests : IDisposable
     {
         private readonly DatabaseContext _context;
-        private readonly Repository<User> _userRepository; 
+        private readonly Repository<User> _userRepository;
+        private readonly CancellationToken _ct = CancellationToken.None; 
 
         public UserRepositoryTests()
         {
@@ -40,9 +41,9 @@ namespace App.Tests.Persistence
             var userId = Guid.NewGuid();
             var user = new User { Id = userId, Email = "test1@example.com", FirstName = "Test", LastName = "User1", DateOfBirth = new DateOnly(1990, 1, 1), PasswordHash = "hash", SystemRegistrationDate = DateTimeOffset.UtcNow };
             _context.Users.Add(user);
-            await _context.SaveChangesAsync(); 
+            await _context.SaveChangesAsync(_ct); 
 
-            var resultUser = await _userRepository.GetFirstOrDefault(u => u.Email == "test1@example.com");
+            var resultUser = await _userRepository.GetFirstOrDefault(u => u.Email == "test1@example.com", null, _ct);
 
             resultUser.Should().NotBeNull();
             resultUser?.Id.Should().Be(userId);
@@ -62,7 +63,7 @@ namespace App.Tests.Persistence
             };
             _context.Roles.Add(role); 
             _context.Users.Add(user); 
-            await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync(_ct);
 
             var resultUser = await _userRepository.GetFirstOrDefault(u => u.Id == userId, includeProperties: "Roles");
 
@@ -76,7 +77,7 @@ namespace App.Tests.Persistence
         [Fact]
         public async Task GetFirstOrDefault_WhenUserDoesNotExist_ShouldReturnNull()
         {
-            var resultUser = await _userRepository.GetFirstOrDefault(u => u.Email == "nonexistent@example.com");
+            var resultUser = await _userRepository.GetFirstOrDefault(u => u.Email == "nonexistent@example.com", null, _ct);
 
             resultUser.Should().BeNull();
         }
@@ -88,7 +89,7 @@ namespace App.Tests.Persistence
             var newUser = new User { Id = userId, Email = "newuser@example.com", FirstName = "New", LastName = "User", DateOfBirth = new DateOnly(1995, 5, 5), PasswordHash = "newhash", SystemRegistrationDate = DateTimeOffset.UtcNow };
 
             _userRepository.Insert(newUser); 
-            int changesCount = await _userRepository.SaveChangesAsync(); 
+            int changesCount = await _userRepository.SaveChangesAsync(_ct); 
 
             changesCount.Should().BeGreaterThan(0); 
 
@@ -128,12 +129,12 @@ namespace App.Tests.Persistence
                 DateOfBirth = new DateOnly(1990,1,1),
                 SystemRegistrationDate = DateTimeOffset.UtcNow
             });
-            await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync(_ct);
 
             var pagParams = new PaginationParameters { Page = 2, PageSize = 1 };
             Func<IQueryable<User>, IOrderedQueryable<User>> orderBy = q => q.OrderBy(u => u.LastName);
 
-            var pagedResult = await _userRepository.GetAll(null, pagParams, orderBy, null);
+            var pagedResult = await _userRepository.GetAll(null, pagParams, orderBy, null,_ct);
 
             pagedResult.Should().NotBeNull();
             pagedResult.Should().HaveCount(1);
@@ -159,13 +160,13 @@ namespace App.Tests.Persistence
                 SystemRegistrationDate = DateTimeOffset.UtcNow.AddDays(-10) 
             };
             _context.Users.Add(user);
-            await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync(_ct);
 
             var userToDelete = await _context.Users.FindAsync(userId); 
             userToDelete.Should().NotBeNull();
 
             _userRepository.Delete(userToDelete!); 
-            var changes = await _userRepository.SaveChangesAsync();
+            var changes = await _userRepository.SaveChangesAsync(_ct);
 
             changes.Should().Be(1); 
             var deletedUserInDb = await _context.Users.FindAsync(userId);
