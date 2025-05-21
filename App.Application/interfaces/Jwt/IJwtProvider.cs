@@ -1,7 +1,5 @@
-
-
 public interface IJwtProvider
 {
-    public Task<Result<(string accessToken, string refreshToken)>> GenerateTokens(User user);
-    public Task<Result<(string accessToken,string refreshToken)>> RefreshTokens(string oldRefreshToken);
+    public Task<(string accessToken, string? refreshToken)> GenerateTokens(User user, bool generateRefreshToken,CancellationToken cancellationToken);
+    public Task<string> RefreshToken(string RefreshToken,CancellationToken cancellationToken);
 }

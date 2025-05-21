@@ -12,62 +12,48 @@ public class CategoriesController : ControllerBase
         _categoryService = categoryService ?? throw new ArgumentNullException(nameof(categoryService));
     }
 
-    private ActionResult ResultIdIsNull(){
-        var badRequest = Result<object>.Failure("Event ID cannot be empty.", ErrorType.InvalidInput);
-        return badRequest.ToActionResult();
-    }
-
     [HttpGet]
     [AllowAnonymous] 
-    public async Task<ActionResult<List<GetCategoryResponse>>> GetAllCategories()
+    public async Task<ActionResult<List<GetCategoryResponse>>> GetAllCategories(CancellationToken cancellationToken)
     {
-        var result = await _categoryService.GetAllCategories();
-        return result.ToActionResult();
+        var result = await _categoryService.GetAllCategories(cancellationToken);
+        
+        return Ok(result);
     }
 
     [HttpGet("{id:guid}")]
     [AllowAnonymous] 
-    public async Task<ActionResult<GetCategoryResponse>> GetCategoryById(Guid id)
+    public async Task<ActionResult<GetCategoryResponse>> GetCategoryById(Guid id, CancellationToken cancellationToken)
     {
-        if (id == Guid.Empty)
-            return ResultIdIsNull();
+        var result = await _categoryService.GetCategoryById(id, cancellationToken);
 
-        var result = await _categoryService.GetCategoryById(id);
-        return result.ToActionResult();
+        return Ok(result);
     }
 
     [HttpPost]
     [Authorize(Policy ="AdminPolicy")]
-    public async Task<ActionResult<GetCategoryResponse>> CreateCategory([FromBody] CreateUpdateCategoryRequest request)
+    public async Task<ActionResult<GetCategoryResponse>> CreateCategory([FromBody] CreateUpdateCategoryRequest request, CancellationToken cancellationToken)
     {
-        var result = await _categoryService.CreateCategory(request);
-        return result.ToActionResult();
+        var result = await _categoryService.CreateCategory(request, cancellationToken);
+
+        return Ok(result);
     }
 
     [HttpPut("{id:guid}")]
     [Authorize(Policy ="AdminPolicy")]
-    public async Task<ActionResult<GetCategoryResponse>> UpdateCategory(Guid id, [FromBody] CreateUpdateCategoryRequest request)
+    public async Task<ActionResult<GetCategoryResponse>> UpdateCategory(Guid id, [FromBody] CreateUpdateCategoryRequest request, CancellationToken cancellationToken)
     {
-        if (id == Guid.Empty)
-            return ResultIdIsNull();
+        var result = await _categoryService.UpdateCategory(id, request, cancellationToken);
 
-        var result = await _categoryService.UpdateCategory(id, request);
-        return result.ToActionResult();
+        return Ok(result);
     }
 
     [HttpDelete("{id:guid}")]
     [Authorize(Policy ="AdminPolicy")]
-    public async Task<IActionResult> DeleteCategory(Guid id)
+    public async Task<IActionResult> DeleteCategory(Guid id, CancellationToken cancellationToken)
     {
-        if (id == Guid.Empty)
-            return ResultIdIsNull();
+        var result = await _categoryService.DeleteCategory(id, cancellationToken);
 
-        var result = await _categoryService.DeleteCategory(id);
-
-        if (result.IsSuccess)
-            return NoContent(); 
-        
-        var errorResult = Result<object>.Failure(result.Message!, result.ErrorType!.Value);
-        return errorResult.ToActionResult();
+        return Ok(result);
     }
 }

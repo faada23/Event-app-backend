@@ -7,103 +7,67 @@ using Microsoft.AspNetCore.Mvc;
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
+    private readonly ICookieAuthManager _cookieAuthManager;
 
-    public AuthController(IAuthService authService)
+    public AuthController(IAuthService authService, ICookieAuthManager cookieAuthManager)
     {
         _authService = authService ?? throw new ArgumentNullException(nameof(authService));
-    }
-
-    private void SetTokenCookies(string accessToken, string refreshToken)
-    {
-        Response.Cookies.Append("JwtCookie", accessToken);
-        Response.Cookies.Append("RefreshTokenCookie", refreshToken);
-    }
-
-    private void ClearTokenCookies()
-    {
-        Response.Cookies.Append("JwtCookie", "");
-        Response.Cookies.Append("RefreshTokenCookie", "");
+        _cookieAuthManager = cookieAuthManager ?? throw new ArgumentNullException(nameof(cookieAuthManager));
     }
 
     [AllowAnonymous]
     [HttpPost("register")]
-    public async Task<IActionResult> Register([FromBody] RegisterUserRequest request)
+    public async Task<IActionResult> Register([FromBody] RegisterUserRequest request,CancellationToken cancellationToken)
     {
-        var result = await _authService.Register(request);
-        if (result.IsSuccess)
-        {
-            return Created();
-        }
-        var objectResult = Result<object>.Failure(result.Message!, result.ErrorType!.Value);
-        return objectResult.ToActionResult();
+        var result = await _authService.Register(request,cancellationToken);
+        return Ok(result);
     }
 
     [AllowAnonymous]
     [HttpPost("login")]
-    public async Task<ActionResult> Login([FromBody] LoginUserRequest request)
+    public async Task<ActionResult> Login([FromBody] LoginUserRequest request,CancellationToken cancellationToken)
     {
-        var result = await _authService.Login(request);
-        if (!result.IsSuccess || result.Value == null)
-        {
-            return result.ToActionResult();
-        }
-        SetTokenCookies(result.Value.AccessToken, result.Value.RefreshToken);
-        return Ok(new { Message = "Login successful." });
+        var result = await _authService.Login(request,cancellationToken);
+        _cookieAuthManager.SetAuthCookies(HttpContext, result);
+        return Ok();
     }
 
     [Authorize(Policy ="AuthenticatedUserPolicy", AuthenticationSchemes ="RefreshScheme")]
     [HttpPost("refresh")]
-    public async Task<IActionResult> Refresh()
+    public async Task<IActionResult> Refresh(CancellationToken cancellationToken)
     {
-        var refreshTokenFromCookie = Request.Cookies["RefreshTokenCookie"];
-        if (string.IsNullOrEmpty(refreshTokenFromCookie))
-        {
-            return Unauthorized("Refresh token not found in cookie.");
-        }
-        var result = await _authService.RefreshToken(refreshTokenFromCookie);
-        if (!result.IsSuccess || result.Value == null)
-        {
-            ClearTokenCookies();
-            return result.ToActionResult();
-        }
-        SetTokenCookies(result.Value.AccessToken, result.Value.RefreshToken);
-        return Ok(new { Message = "Tokens refreshed successfully." });
+        var refreshTokenCookie = _cookieAuthManager.GetRefreshTokenFromCookie(HttpContext);
+        var accessToken = await _authService.RefreshToken(refreshTokenCookie ?? string.Empty, cancellationToken);
+        _cookieAuthManager.SetAccessTokenCookie(HttpContext, accessToken);
+
+        return Ok();
     }
 
     [HttpDelete("logout")]
     [Authorize(Policy ="AuthenticatedUserPolicy")]
-    public async Task<ActionResult> Logout()
+    public async Task<ActionResult> Logout(CancellationToken cancellationToken)
     {
-        var refreshTokenFromCookie = Request.Cookies["RefreshTokenCookie"];
-        var result = await _authService.Logout(refreshTokenFromCookie ?? string.Empty);
+        var refreshTokenCookie = _cookieAuthManager.GetRefreshTokenFromCookie(HttpContext);
+        await _authService.Logout(refreshTokenCookie ?? string.Empty, cancellationToken);
 
-        ClearTokenCookies();
+        _cookieAuthManager.ClearAuthCookies(HttpContext);
+        return Ok();
 
-        if (result.IsSuccess)
-        {
-            return Ok(new { Message = "Logout successful." });
-        }
-        var objectResult = Result<string>.Failure(result.Message!, result.ErrorType!.Value);
-        return objectResult.ToActionResult();
     }
 
     [HttpDelete("logout-all")]
     [Authorize(Policy ="AuthenticatedUserPolicy")]
-    public async Task<ActionResult> LogoutAll()
+    public async Task<ActionResult> LogoutAll(CancellationToken cancellationToken)
     {
         var userIdClaim = User.FindFirstValue("Id");
         if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out Guid userId))
         {
-            return Unauthorized("User ID claim not found or invalid");
+            return Unauthorized("User ID not found or invalid");
         }
-        var result = await _authService.LogoutAll(userId);
-        ClearTokenCookies();
-        if (result.IsSuccess)
-        {
-            return Ok(new { Message = "Logged out from all devices successfully." });
-        }
-        var objectResult = Result<string>.Failure(result.Message!, result.ErrorType!.Value);
-        return objectResult.ToActionResult();
+        await _authService.LogoutAll(userId, cancellationToken);
+
+        _cookieAuthManager.ClearAuthCookies(HttpContext);
+        return Ok();
     }
 
 }

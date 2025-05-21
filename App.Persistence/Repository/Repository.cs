@@ -26,63 +26,51 @@ public class Repository<T> : IRepository<T> where T : class
     }
 
 
-    public async Task<Result<PagedList<T>>> GetAll(
+    public async Task<PagedList<T>> GetAll(
         Expression<Func<T, bool>>? filter = null,
         PaginationParameters? pagParams = null,
         Func<IQueryable<T>, IOrderedQueryable<T>>? orderBy = null,
-        string? includeProperties = null)
+        string? includeProperties = null,
+        CancellationToken cancellationToken = default)
     {
-        try
+
+        IQueryable<T> query = _dbSet;
+
+        if (filter != null)
         {
-            IQueryable<T> query = _dbSet;
-
-            if (filter != null)
-            {
-                query = query.Where(filter);
-            }
-
-            query = IncludeProperties(query, includeProperties);
-
-            // происходит на уровне БД
-            orderBy ??= q => q.OrderByDescending(e => EF.Property<Guid>(e, "Id"));
-            query = orderBy(query);
-
-            var totalItems = await query.CountAsync();
-
-            if (pagParams != null)
-            {
-                query = query
-                    .Skip((pagParams.Page - 1) * pagParams.PageSize)
-                    .Take(pagParams.PageSize);
-            }
-
-            var items = await query.AsNoTracking().ToListAsync();
-            int pageNumber = pagParams?.Page ?? 1;
-            int pageSize = pagParams?.PageSize ?? totalItems;
-
-            var pagedList = PagedList<T>.ToPagedList(items, pageNumber, pageSize, totalItems);
-            return Result<PagedList<T>>.Success(pagedList);
+            query = query.Where(filter);
         }
-        catch (Exception ex)
+
+        query = IncludeProperties(query, includeProperties);
+
+        // происходит на уровне БД
+        orderBy ??= q => q.OrderByDescending(e => EF.Property<Guid>(e, "Id"));
+        query = orderBy(query);
+
+        var totalItems = await query.CountAsync(cancellationToken);
+
+        if (pagParams != null)
         {
-            return Result<PagedList<T>>.Failure(ex.Message, ErrorType.DatabaseError);
+            query = query
+                .Skip((pagParams.Page - 1) * pagParams.PageSize)
+                .Take(pagParams.PageSize);
         }
+
+        var items = await query.AsNoTracking().ToListAsync(cancellationToken);
+        int pageNumber = pagParams?.Page ?? 1;
+        int pageSize = pagParams?.PageSize ?? totalItems;
+
+        var pagedList = PagedList<T>.ToPagedList(items, pageNumber, pageSize, totalItems);
+        return pagedList;
     }
 
-    public async Task<Result<T?>> GetFirstOrDefault(Expression<Func<T, bool>> filter, string? includeProperties = null)
+    public async Task<T?> GetFirstOrDefault(Expression<Func<T, bool>> filter, string? includeProperties = null,CancellationToken cancellationToken = default)
     {
-       try
-        {
-            IQueryable<T> query = _dbSet.Where(filter);
-            query = IncludeProperties(query, includeProperties);
+        IQueryable<T> query = _dbSet.Where(filter);
+        query = IncludeProperties(query, includeProperties);
 
-            var entity = await query.FirstOrDefaultAsync();
-            return Result<T?>.Success(entity);
-        }
-        catch (Exception ex)
-        {
-            return Result<T?>.Failure(ex.Message, ErrorType.DatabaseError);
-        }
+        var entity = await query.FirstOrDefaultAsync(cancellationToken);
+        return entity;
     }
 
 
@@ -104,14 +92,9 @@ public class Repository<T> : IRepository<T> where T : class
         return query;
     }
 
-    public async Task<Result<int>> SaveChangesAsync()
+    public async Task<int> SaveChangesAsync(CancellationToken cancellationToken)
     {
-        try{
-            int changes = await _db.SaveChangesAsync();
-            return Result<int>.Success(changes);
-        }
-        catch(Exception ex){
-            return Result<int>.Failure(ex.Message,ErrorType.DatabaseError);
-        }
+        int changes = await _db.SaveChangesAsync(cancellationToken);
+        return changes;
     }
 }

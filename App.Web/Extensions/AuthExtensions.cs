@@ -32,7 +32,7 @@ public static class AuthExtension
                 options.Events = new JwtBearerEvents
                 {
                     OnMessageReceived = context => {
-                        context.Token = context.Request.Cookies["JwtCookie"];
+                        context.Token = context.Request.Cookies["Access-token"];
 
                         return Task.CompletedTask;
                     }    
@@ -51,7 +51,7 @@ public static class AuthExtension
                 options.Events = new JwtBearerEvents
                 {
                     OnMessageReceived = context => {
-                        context.Token = context.Request.Cookies["JwtCookie"];
+                        context.Token = context.Request.Cookies["Access-Token"];
                         return Task.CompletedTask;
                     }
                 };

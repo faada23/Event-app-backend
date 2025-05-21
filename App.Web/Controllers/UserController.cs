@@ -7,22 +7,12 @@ using Microsoft.AspNetCore.Mvc;
 public class UsersController : ControllerBase
 {
     private readonly IUserService _userService;
+    private readonly ICookieAuthManager _cookieAuthManager;
 
-    public UsersController(IUserService userService)
+    public UsersController(IUserService userService, ICookieAuthManager cookieAuthManager)
     {
         _userService = userService ?? throw new ArgumentNullException(nameof(userService));
-    }
-
-    private ActionResult ResultIdIsNull(string idName = "ID")
-    {
-        var badRequest = Result<object>.Failure($"{idName} cannot be empty.", ErrorType.InvalidInput);
-        return badRequest.ToActionResult();
-    }
-
-    private void ClearTokenCookies()
-    {
-        Response.Cookies.Append("JwtCookie", "");
-        Response.Cookies.Append("RefreshTokenCookie", "");
+        _cookieAuthManager = cookieAuthManager ?? throw new ArgumentNullException(nameof(cookieAuthManager));
     }
 
     private Guid GetCurrentUserIdFromClaims()
@@ -30,124 +20,102 @@ public class UsersController : ControllerBase
         var userIdClaim = User.FindFirstValue("Id");
         if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
         {
-            throw new UnauthorizedAccessException("User ID claim is missing or invalid.");
+            throw new UnauthorizedAccessException("User ID is missing or invalid.");
         }
         return userId;
     }
 
     [HttpGet("me")]
     [Authorize(Policy ="AuthenticatedUserPolicy")]
-    public async Task<ActionResult<GetUserResponse>> GetCurrentUser()
+    public async Task<ActionResult<GetUserResponse>> GetCurrentUser(CancellationToken cancellationToken)
     {
         Guid currentUserId = GetCurrentUserIdFromClaims();
 
-        return await GetUserById(currentUserId);
+        return await GetUserById(currentUserId, cancellationToken);
     }
 
     [HttpGet]
     [Authorize(Policy = "AdminPolicy")]
-    public async Task<ActionResult<PagedList<GetUserResponse>>> GetAllUsers([FromQuery] PaginationParameters? pagParams)
+    public async Task<ActionResult<PagedList<GetUserResponse>>> GetAllUsers([FromQuery] PaginationParameters? pagParams, CancellationToken cancellationToken)
     {
-        pagParams ??= new PaginationParameters();
-        var result = await _userService.GetAllUsers(pagParams);
-        return result.ToActionResult();
+        var result = await _userService.GetAllUsers(pagParams, cancellationToken);
+
+        return Ok(result);
     }
 
     [HttpGet("{id:guid}")]
     [Authorize(Policy = "AdminPolicy")]
-    public async Task<ActionResult<GetUserResponse>> GetUserById(Guid id)
+    public async Task<ActionResult<GetUserResponse>> GetUserById(Guid id, CancellationToken cancellationToken)
     {
-        if (id == Guid.Empty)
-            return ResultIdIsNull("User ID");
+        var result = await _userService.GetUserById(id, cancellationToken);
 
-        var result = await _userService.GetUserById(id);
-        return result.ToActionResult();
+        return Ok(result);
     }
 
     [HttpPut("{id:guid}")]
     [Authorize(Policy = "AdminOrSelfPolicy")]
-    public async Task<ActionResult<GetUserResponse>> UpdateUser(Guid id, [FromBody] UpdateUserRequest request)
+    public async Task<ActionResult<GetUserResponse>> UpdateUser(Guid id, [FromBody] UpdateUserRequest request, CancellationToken cancellationToken)
     {
-        if (id == Guid.Empty)
-            return ResultIdIsNull("User ID");
+        var result = await _userService.UpdateUser(id, request, cancellationToken);
 
-        if (!ModelState.IsValid)
-        {
-            return BadRequest(ModelState);
-        }
-        
-        var result = await _userService.UpdateUser(id, request);
-        return result.ToActionResult();
+        return Ok(result);
     }
 
     [HttpPut("me")]
     [Authorize(Policy ="AuthenticatedUserPolicy")]
-    public async Task<ActionResult<GetUserResponse>> UpdateCurrentUser([FromBody] UpdateUserRequest request)
+    public async Task<ActionResult<GetUserResponse>> UpdateCurrentUser([FromBody] UpdateUserRequest request, CancellationToken cancellationToken)
     {
         Guid currentUserId = GetCurrentUserIdFromClaims();
 
-        return await UpdateUser(currentUserId, request);
+        return await UpdateUser(currentUserId, request, cancellationToken);
     }
 
     [HttpDelete("{id:guid}")]
     [Authorize(Policy ="AuthenticatedUserPolicy")]
-    public async Task<IActionResult> DeleteUser(Guid id)
+    public async Task<IActionResult> DeleteUser(Guid id, CancellationToken cancellationToken)
     {
-        if (id == Guid.Empty)
-            return ResultIdIsNull("User ID");
+        var result = await _userService.DeleteUser(id, cancellationToken);
 
-        var result = await _userService.DeleteUser(id);
-        if (result.IsSuccess)
-        {
-            return NoContent();
-        }
-        var errorResult = Result<object>.Failure(result.Message!, result.ErrorType!.Value);
-        return errorResult.ToActionResult();
+        return Ok(result);
     }
 
     
     [HttpDelete("me")]
     [Authorize(Policy ="AuthenticatedUserPolicy")]
-    public async Task<IActionResult> DeleteCurrentUser()
+    public async Task<IActionResult> DeleteCurrentUser(CancellationToken cancellationToken)
     {
         Guid currentUserId = GetCurrentUserIdFromClaims();
-        ClearTokenCookies();
-        return await DeleteUser(currentUserId);
+        _cookieAuthManager.ClearAuthCookies(HttpContext);
+        return await DeleteUser(currentUserId, cancellationToken);
     }
 
     [HttpPost("participate/{eventId:guid}")]
     [Authorize(Policy ="AuthenticatedUserPolicy")]
-    public async Task<ActionResult<UserEventParticipationResponse>> ParticipateInEvent(Guid eventId)
+    public async Task<ActionResult<UserEventParticipationResponse>> ParticipateInEvent(Guid eventId, CancellationToken cancellationToken)
     {
-        if (eventId == Guid.Empty)
-            return ResultIdIsNull("Event ID");
-
         Guid userId = GetCurrentUserIdFromClaims();
 
-        var result = await _userService.ParticipateInEvent(userId, eventId);
-        return result.ToActionResult();
+        var result = await _userService.ParticipateInEvent(userId, eventId, cancellationToken);
+        return Ok(result);
     }
 
     [HttpDelete("participate/{eventId:guid}")]
     [Authorize(Policy ="AuthenticatedUserPolicy")]
-    public async Task<ActionResult<UserEventParticipationResponse>> CancelEventParticipation(Guid eventId)
-    {
-        if (eventId == Guid.Empty)
-            return ResultIdIsNull("Event ID");
-               
+    public async Task<ActionResult<UserEventParticipationResponse>> CancelEventParticipation(Guid eventId, CancellationToken cancellationToken)
+    {               
         Guid userId = GetCurrentUserIdFromClaims();
  
-        var result = await _userService.CancelEventParticipation(userId, eventId);
-        return result.ToActionResult();
+        var result = await _userService.CancelEventParticipation(userId, eventId, cancellationToken);
+        return Ok(result);
     }
 
     [HttpGet("participated-events")]
     [Authorize(Policy ="AuthenticatedUserPolicy")]
-    public async Task<IActionResult> GetUserParticipatedEvents([FromQuery] PaginationParameters? pagParams)
+    public async Task<IActionResult> GetUserParticipatedEvents([FromQuery] PaginationParameters? pagParams, CancellationToken cancellationToken)
     {   
         Guid userId = GetCurrentUserIdFromClaims();
 
-        var result = await _userService.GetUserParticipatedEvents(userId, pagParams);
-        return result.ToActionResult();     
+        var result = await _userService.GetUserParticipatedEvents(userId, pagParams, cancellationToken);
+        return Ok(result);    
     }
 }

@@ -9,144 +9,83 @@ public class CategoryService : ICategoryService
         _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
     }
 
-    private async Task<Result<Category>> GetCategoryEntityByIdAsync(Guid id)
+    private async Task<Category> GetCategoryByIdAsync(Guid id,CancellationToken cancellationToken)
     {
-        var categoryResult = await _categoryRepository.GetFirstOrDefault(c => c.Id == id);
-
-        if (!categoryResult.IsSuccess)
-        {
-            return categoryResult!;
-        }
-        if (categoryResult.Value == null)
-        {
-            return Result<Category>.Failure($"Category with id '{id}' was not found.", ErrorType.RecordNotFound);
-        }
-        return categoryResult!;
+        var category = await _categoryRepository.GetFirstOrDefault(
+            filter: c => c.Id == id,
+            cancellationToken: cancellationToken) 
+            ?? throw new NotFoundException("Category", id);
+            
+        return category;
     }
 
-    private async Task<Result<bool>> NoCategoryNameConflictCheck(string name, Guid? excludeId = null)
+    private async Task CategoryNameConflictCheck(string name, Guid? excludeId = null, CancellationToken cancellationToken = default)
     {
-        var queryResult = await _categoryRepository.GetFirstOrDefault(c =>
-            c.Name == name && (!excludeId.HasValue || c.Id != excludeId));
+        var query = await _categoryRepository.GetFirstOrDefault(
+            filter: c =>c.Name == name && (!excludeId.HasValue || c.Id != excludeId),
+            cancellationToken: cancellationToken);
 
-        if (!queryResult.IsSuccess)
-        {
-            return Result<bool>.Failure(queryResult.Message!, queryResult.ErrorType!.Value);
-        }
-
-        if (queryResult.Value != null)
-        {
-            return Result<bool>.Failure($"Category with name '{name}' already exists.", ErrorType.AlreadyExists);
-        }
-        return Result<bool>.Success(true);
+        if (query != null)
+            throw new AlreadyExistsException("Category", name);
     }
 
-    public async Task<Result<PagedResponse<GetCategoryResponse>>> GetAllCategories()
+    public async Task<PagedResponse<GetCategoryResponse>> GetAllCategories(CancellationToken cancellationToken)
     {
         var categoriesResult = await _categoryRepository.GetAll(
-            orderBy: q => q.OrderBy(c => c.Name)
-        );
+            orderBy: q => q.OrderBy(c => c.Name),
+            cancellationToken: cancellationToken);
 
-        if (!categoriesResult.IsSuccess)
-        {
-            return Result<PagedResponse<GetCategoryResponse>>.Failure(
-                categoriesResult.Message!,
-                categoriesResult.ErrorType!.Value);
-        }
-
-        var pagedResponse = _mapper.Map<PagedList<Category>, PagedResponse<GetCategoryResponse>>(categoriesResult.Value!);
-
-        return Result<PagedResponse<GetCategoryResponse>>.Success(pagedResponse);
+        var pagedResponse = _mapper.Map<PagedList<Category>, PagedResponse<GetCategoryResponse>>(categoriesResult);
+        return pagedResponse;
     }
 
-    public async Task<Result<GetCategoryResponse>> GetCategoryById(Guid id)
+    public async Task<GetCategoryResponse> GetCategoryById(Guid id, CancellationToken cancellationToken)
     {
-        var categoryEntityResult = await GetCategoryEntityByIdAsync(id);
+        var categoryEntity = await GetCategoryByIdAsync(id, cancellationToken);
 
-        if (!categoryEntityResult.IsSuccess)
-        {
-            return Result<GetCategoryResponse>.Failure(
-                categoryEntityResult.Message!,
-                categoryEntityResult.ErrorType!.Value);
-        }
-
-        return Result<GetCategoryResponse>.Success(_mapper.Map<Category, GetCategoryResponse>(categoryEntityResult.Value!));
+        return _mapper.Map<Category, GetCategoryResponse>(categoryEntity);
     }
 
-    public async Task<Result<GetCategoryResponse>> CreateCategory(CreateUpdateCategoryRequest request)
+    public async Task<GetCategoryResponse> CreateCategory(CreateUpdateCategoryRequest request, CancellationToken cancellationToken)
     {
-        var nameConflictResult = await NoCategoryNameConflictCheck(request.Name);
-        if (!nameConflictResult.IsSuccess)
-        {
-            return Result<GetCategoryResponse>.Failure(nameConflictResult.Message!, nameConflictResult.ErrorType!.Value);
-        }
+        await CategoryNameConflictCheck(
+            name:request.Name,
+            cancellationToken: cancellationToken);
 
         var newCategory = _mapper.Map<CreateUpdateCategoryRequest, Category>(request);
 
         _categoryRepository.Insert(newCategory);
-        var saveResult = await _categoryRepository.SaveChangesAsync();
+        await _categoryRepository.SaveChangesAsync(cancellationToken);
 
-        if (!saveResult.IsSuccess)
-        {
-            return Result<GetCategoryResponse>.Failure(saveResult.Message!, saveResult.ErrorType!.Value);
-        }
-
-        return Result<GetCategoryResponse>.Success(_mapper.Map<Category, GetCategoryResponse>(newCategory));
+        return _mapper.Map<Category, GetCategoryResponse>(newCategory);
     }
 
-    public async Task<Result<GetCategoryResponse>> UpdateCategory(Guid id, CreateUpdateCategoryRequest request)
+    public async Task<GetCategoryResponse> UpdateCategory(Guid id, CreateUpdateCategoryRequest request,CancellationToken cancellationToken)
     {
-        var categoryEntityResult = await GetCategoryEntityByIdAsync(id);
-        if (!categoryEntityResult.IsSuccess)
-        {
-            return Result<GetCategoryResponse>.Failure(
-                categoryEntityResult.Message!,
-                categoryEntityResult.ErrorType!.Value);
-        }
+        var category = await GetCategoryByIdAsync(id, cancellationToken);
 
-        var categoryToUpdate = categoryEntityResult.Value!;
+        if (category.Name == request.Name)
+            return _mapper.Map<Category, GetCategoryResponse>(category);
+        
+        await CategoryNameConflictCheck(
+            name:request.Name,
+            excludeId: id,
+            cancellationToken: cancellationToken);
 
-        if (categoryToUpdate.Name == request.Name)
-        {
-            return Result<GetCategoryResponse>.Success(_mapper.Map<Category, GetCategoryResponse>(categoryToUpdate));
-        }
+        category.Name = request.Name;
+        _categoryRepository.Update(category);
+        await _categoryRepository.SaveChangesAsync(cancellationToken);
 
-        var nameConflictResult = await NoCategoryNameConflictCheck(request.Name, id);
-        if (!nameConflictResult.IsSuccess)
-        {
-            return Result<GetCategoryResponse>.Failure(nameConflictResult.Message!, nameConflictResult.ErrorType!.Value);
-        }
-
-        categoryToUpdate.Name = request.Name;
-        _categoryRepository.Update(categoryToUpdate);
-        var saveResult = await _categoryRepository.SaveChangesAsync();
-
-        if (!saveResult.IsSuccess)
-        {
-            return Result<GetCategoryResponse>.Failure(saveResult.Message!, saveResult.ErrorType!.Value);
-        }
-
-        return Result<GetCategoryResponse>.Success(_mapper.Map<Category, GetCategoryResponse>(categoryToUpdate));
+        return _mapper.Map<Category, GetCategoryResponse>(category);
     }
 
-    public async Task<Result<bool>> DeleteCategory(Guid id)
+    public async Task<bool> DeleteCategory(Guid id, CancellationToken cancellationToken)
     {
-        var categoryEntityResult = await GetCategoryEntityByIdAsync(id);
-        if (!categoryEntityResult.IsSuccess)
-        {
-            return Result<bool>.Failure(
-                categoryEntityResult.Message!,
-                categoryEntityResult.ErrorType!.Value);
-        }
+        var category = await GetCategoryByIdAsync(id, cancellationToken);
+    
+        _categoryRepository.Delete(category);
+        await _categoryRepository.SaveChangesAsync(cancellationToken);
 
-        _categoryRepository.Delete(categoryEntityResult.Value!);
-        var saveResult = await _categoryRepository.SaveChangesAsync();
-
-        if (!saveResult.IsSuccess)
-        {
-            return Result<bool>.Failure(saveResult.Message!, saveResult.ErrorType!.Value);
-        }
-
-        return Result<bool>.Success(true); 
+        return true; 
     }
 }
