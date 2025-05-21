@@ -30,54 +30,54 @@ public class UsersController : ControllerBase
 
     [HttpGet("me")]
     [Authorize(Policy ="AuthenticatedUserPolicy")]
-    public async Task<ActionResult<GetUserResponse>> GetCurrentUser()
+    public async Task<ActionResult<GetUserResponse>> GetCurrentUser(CancellationToken cancellationToken)
     {
         Guid currentUserId = GetCurrentUserIdFromClaims();
 
-        return await GetUserById(currentUserId);
+        return await GetUserById(currentUserId, cancellationToken);
     }
 
     [HttpGet]
     [Authorize(Policy = "AdminPolicy")]
-    public async Task<ActionResult<PagedList<GetUserResponse>>> GetAllUsers([FromQuery] PaginationParameters? pagParams)
+    public async Task<ActionResult<PagedList<GetUserResponse>>> GetAllUsers([FromQuery] PaginationParameters? pagParams, CancellationToken cancellationToken)
     {
-        var result = await _userService.GetAllUsers(pagParams);
+        var result = await _userService.GetAllUsers(pagParams, cancellationToken);
 
         return Ok(result);
     }
 
     [HttpGet("{id:guid}")]
     [Authorize(Policy = "AdminPolicy")]
-    public async Task<ActionResult<GetUserResponse>> GetUserById(Guid id)
+    public async Task<ActionResult<GetUserResponse>> GetUserById(Guid id, CancellationToken cancellationToken)
     {
-        var result = await _userService.GetUserById(id);
+        var result = await _userService.GetUserById(id, cancellationToken);
 
         return Ok(result);
     }
 
     [HttpPut("{id:guid}")]
     [Authorize(Policy = "AdminOrSelfPolicy")]
-    public async Task<ActionResult<GetUserResponse>> UpdateUser(Guid id, [FromBody] UpdateUserRequest request)
+    public async Task<ActionResult<GetUserResponse>> UpdateUser(Guid id, [FromBody] UpdateUserRequest request, CancellationToken cancellationToken)
     {
-        var result = await _userService.UpdateUser(id, request);
+        var result = await _userService.UpdateUser(id, request, cancellationToken);
 
         return Ok(result);
     }
 
     [HttpPut("me")]
     [Authorize(Policy ="AuthenticatedUserPolicy")]
-    public async Task<ActionResult<GetUserResponse>> UpdateCurrentUser([FromBody] UpdateUserRequest request)
+    public async Task<ActionResult<GetUserResponse>> UpdateCurrentUser([FromBody] UpdateUserRequest request, CancellationToken cancellationToken)
     {
         Guid currentUserId = GetCurrentUserIdFromClaims();
 
-        return await UpdateUser(currentUserId, request);
+        return await UpdateUser(currentUserId, request, cancellationToken);
     }
 
     [HttpDelete("{id:guid}")]
     [Authorize(Policy ="AuthenticatedUserPolicy")]
-    public async Task<IActionResult> DeleteUser(Guid id)
+    public async Task<IActionResult> DeleteUser(Guid id, CancellationToken cancellationToken)
     {
-        var result = await _userService.DeleteUser(id);
+        var result = await _userService.DeleteUser(id, cancellationToken);
 
         return Ok(result);
     }
@@ -85,40 +85,40 @@ public class UsersController : ControllerBase
     
     [HttpDelete("me")]
     [Authorize(Policy ="AuthenticatedUserPolicy")]
-    public async Task<IActionResult> DeleteCurrentUser()
+    public async Task<IActionResult> DeleteCurrentUser(CancellationToken cancellationToken)
     {
         Guid currentUserId = GetCurrentUserIdFromClaims();
         ClearTokenCookies();
-        return await DeleteUser(currentUserId);
+        return await DeleteUser(currentUserId, cancellationToken);
     }
 
     [HttpPost("participate/{eventId:guid}")]
     [Authorize(Policy ="AuthenticatedUserPolicy")]
-    public async Task<ActionResult<UserEventParticipationResponse>> ParticipateInEvent(Guid eventId)
+    public async Task<ActionResult<UserEventParticipationResponse>> ParticipateInEvent(Guid eventId, CancellationToken cancellationToken)
     {
         Guid userId = GetCurrentUserIdFromClaims();
 
-        var result = await _userService.ParticipateInEvent(userId, eventId);
+        var result = await _userService.ParticipateInEvent(userId, eventId, cancellationToken);
         return Ok(result);
     }
 
     [HttpDelete("participate/{eventId:guid}")]
     [Authorize(Policy ="AuthenticatedUserPolicy")]
-    public async Task<ActionResult<UserEventParticipationResponse>> CancelEventParticipation(Guid eventId)
+    public async Task<ActionResult<UserEventParticipationResponse>> CancelEventParticipation(Guid eventId, CancellationToken cancellationToken)
     {               
         Guid userId = GetCurrentUserIdFromClaims();
  
-        var result = await _userService.CancelEventParticipation(userId, eventId);
+        var result = await _userService.CancelEventParticipation(userId, eventId, cancellationToken);
         return Ok(result);
     }
 
     [HttpGet("participated-events")]
     [Authorize(Policy ="AuthenticatedUserPolicy")]
-    public async Task<IActionResult> GetUserParticipatedEvents([FromQuery] PaginationParameters? pagParams)
+    public async Task<IActionResult> GetUserParticipatedEvents([FromQuery] PaginationParameters? pagParams, CancellationToken cancellationToken)
     {   
         Guid userId = GetCurrentUserIdFromClaims();
 
-        var result = await _userService.GetUserParticipatedEvents(userId, pagParams);
+        var result = await _userService.GetUserParticipatedEvents(userId, pagParams, cancellationToken);
         return Ok(result);    
     }
 }

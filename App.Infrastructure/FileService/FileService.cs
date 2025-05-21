@@ -15,7 +15,7 @@ public class FileStorageService : IFileStorageService
         }
     }
 
-    public async Task<string> SaveFileAsync(IFormFile file, string subDirectory)
+    public async Task<string> SaveFileAsync(IFormFile file, string subDirectory, CancellationToken cancellationToken)
     {   
 
         if (file == null || file.Length == 0)
@@ -39,7 +39,7 @@ public class FileStorageService : IFileStorageService
 
         await using (var stream = new FileStream(absoluteFilePath, FileMode.Create))
         {
-            await file.CopyToAsync(stream);
+            await file.CopyToAsync(stream, cancellationToken);
         }
     
         return "/" + relativeFilePath;

@@ -24,27 +24,27 @@ public class EventsController : ControllerBase
 
     [HttpGet("{id:guid}")]
     [AllowAnonymous] 
-    public async Task<ActionResult<GetEventResponse>> GetEventById(Guid id)
+    public async Task<ActionResult<GetEventResponse>> GetEventById(Guid id, CancellationToken cancellationToken)
     {
-        var result = await _eventService.GetEventById(id);
+        var result = await _eventService.GetEventById(id, cancellationToken);
 
         return Ok(result);
     }
 
     [HttpPost]
     [Authorize(Policy ="AdminPolicy")]
-    public async Task<ActionResult<GetEventResponse>> CreateEvent([FromBody] CreateEventRequest request)
+    public async Task<ActionResult<GetEventResponse>> CreateEvent([FromBody] CreateEventRequest request, CancellationToken cancellationToken)
     {
-        var result = await _eventService.CreateEvent(request);
+        var result = await _eventService.CreateEvent(request, cancellationToken);
 
         return Ok(result);
     }
 
     [HttpPut("{id:guid}")]
     [Authorize(Policy ="AdminPolicy")]
-    public async Task<ActionResult<GetEventResponse>> UpdateEventDetails(Guid id, [FromBody] UpdateEventRequest request)
+    public async Task<ActionResult<GetEventResponse>> UpdateEventDetails(Guid id, [FromBody] UpdateEventRequest request, CancellationToken cancellationToken)
     {
-        var result = await _eventService.UpdateEventDetails(id, request);
+        var result = await _eventService.UpdateEventDetails(id, request, cancellationToken);
 
         return Ok(result); 
     }
@@ -52,27 +52,27 @@ public class EventsController : ControllerBase
 
     [HttpDelete("{id:guid}")]
     [Authorize(Policy ="AdminPolicy")]
-    public async Task<IActionResult> DeleteEvent(Guid id) 
+    public async Task<IActionResult> DeleteEvent(Guid id, CancellationToken cancellationToken) 
     {
-        var result = await _eventService.DeleteEvent(id);
+        var result = await _eventService.DeleteEvent(id, cancellationToken);
 
         return Ok(result);
     }
 
     [HttpPost("{eventId:guid}/image")]
     [Authorize(Policy ="AdminPolicy")]
-    public async Task<IActionResult> UploadEventImage(Guid eventId, IFormFile imageFile) 
+    public async Task<IActionResult> UploadEventImage(Guid eventId, IFormFile imageFile, CancellationToken cancellationToken) 
     {        
-        var result = await _eventService.UploadEventImage(eventId, imageFile);
+        var result = await _eventService.UploadEventImage(eventId, imageFile, cancellationToken);
 
         return Ok(result);
     }
 
     [HttpDelete("{eventId:guid}/image")]
     [Authorize(Policy ="AdminPolicy")]
-    public async Task<IActionResult> DeleteEventImage(Guid eventId)
+    public async Task<IActionResult> DeleteEventImage(Guid eventId, CancellationToken cancellationToken)
     {
-        var result = await _eventService.DeleteEventImage(eventId);
+        var result = await _eventService.DeleteEventImage(eventId, cancellationToken);
         
         return Ok(result); 
     }

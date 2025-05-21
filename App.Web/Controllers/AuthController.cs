@@ -27,24 +27,24 @@ public class AuthController : ControllerBase
 
     [AllowAnonymous]
     [HttpPost("register")]
-    public async Task<IActionResult> Register([FromBody] RegisterUserRequest request)
+    public async Task<IActionResult> Register([FromBody] RegisterUserRequest request,CancellationToken cancellationToken)
     {
-        var result = await _authService.Register(request);
+        var result = await _authService.Register(request,cancellationToken);
         return Ok(result);
     }
 
     [AllowAnonymous]
     [HttpPost("login")]
-    public async Task<ActionResult> Login([FromBody] LoginUserRequest request)
+    public async Task<ActionResult> Login([FromBody] LoginUserRequest request,CancellationToken cancellationToken)
     {
-        var result = await _authService.Login(request);
+        var result = await _authService.Login(request,cancellationToken);
         SetTokenCookies(result.AccessToken, result.RefreshToken);
         return Ok();
     }
 
     [Authorize(Policy ="AuthenticatedUserPolicy", AuthenticationSchemes ="RefreshScheme")]
     [HttpPost("refresh")]
-    public async Task<IActionResult> Refresh()
+    public async Task<IActionResult> Refresh(CancellationToken cancellationToken)
     {
         var refreshTokenFromCookie = Request.Cookies["RefreshTokenCookie"];
         if (string.IsNullOrEmpty(refreshTokenFromCookie))
@@ -52,17 +52,17 @@ public class AuthController : ControllerBase
             return Unauthorized("Refresh token not found in cookie.");
         }
 
-        var accessToken = await _authService.RefreshToken(refreshTokenFromCookie);
+        var accessToken = await _authService.RefreshToken(refreshTokenFromCookie, cancellationToken);
         Response.Cookies.Append("JwtCookie", accessToken);
         return Ok();
     }
 
     [HttpDelete("logout")]
     [Authorize(Policy ="AuthenticatedUserPolicy")]
-    public async Task<ActionResult> Logout()
+    public async Task<ActionResult> Logout(CancellationToken cancellationToken)
     {
         var refreshTokenFromCookie = Request.Cookies["RefreshTokenCookie"];
-        await _authService.Logout(refreshTokenFromCookie ?? string.Empty);
+        await _authService.Logout(refreshTokenFromCookie ?? string.Empty, cancellationToken);
 
         ClearTokenCookies();
         return Ok();
@@ -71,14 +71,14 @@ public class AuthController : ControllerBase
 
     [HttpDelete("logout-all")]
     [Authorize(Policy ="AuthenticatedUserPolicy")]
-    public async Task<ActionResult> LogoutAll()
+    public async Task<ActionResult> LogoutAll(CancellationToken cancellationToken)
     {
         var userIdClaim = User.FindFirstValue("Id");
         if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out Guid userId))
         {
             return Unauthorized("User ID claim not found or invalid");
         }
-        await _authService.LogoutAll(userId);
+        await _authService.LogoutAll(userId, cancellationToken);
 
         ClearTokenCookies();
         return Ok();

@@ -1,8 +1,8 @@
 public interface IAuthService
 {
-    Task<bool> Register(RegisterUserRequest registerDto);
-    Task<LoginUserResponse> Login(LoginUserRequest loginDto);
-    Task<string> RefreshToken(string refreshToken);
-    Task Logout(string refreshToken);
-    Task LogoutAll(Guid userId);
+    Task<bool> Register(RegisterUserRequest registerDto,CancellationToken cancellationToken);
+    Task<LoginUserResponse> Login(LoginUserRequest loginDto,CancellationToken cancellationToken);
+    Task<string> RefreshToken(string refreshToken, CancellationToken cancellationToken);
+    Task Logout(string refreshToken, CancellationToken cancellationToken);
+    Task LogoutAll(Guid userId, CancellationToken cancellationToken);
 }

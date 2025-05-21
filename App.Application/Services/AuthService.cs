@@ -23,9 +23,11 @@ public class AuthService : IAuthService
         _passwordHasher = userPasswordHasher ?? throw new ArgumentNullException(nameof(userPasswordHasher));
     }
 
-    public async Task<bool> Register(RegisterUserRequest registerDto)
+    public async Task<bool> Register(RegisterUserRequest registerDto, CancellationToken cancellationToken)
     {
-        var existingUser = await _userRepository.GetFirstOrDefault(u => u.Email == registerDto.Email);
+        var existingUser = await _userRepository.GetFirstOrDefault(
+            filter: u => u.Email == registerDto.Email,
+            cancellationToken: cancellationToken);
 
         if (existingUser != null)
             throw new AlreadyExistsException("User", existingUser.Email);
@@ -33,21 +35,25 @@ public class AuthService : IAuthService
         var user = _mapper.Map<RegisterUserRequest, User>(registerDto);
         user.PasswordHash = _passwordHasher.HashPassword(user, registerDto.Password);
 
-        var getRole = await _roleRepository.GetFirstOrDefault(r => r.Name == RoleConstants.User)
+        var getRole = await _roleRepository.GetFirstOrDefault(
+            filter: r => r.Name == RoleConstants.User,
+            cancellationToken: cancellationToken)
             ?? throw new NotFoundException();
+            
         user.Roles.Add(getRole);
     
         _userRepository.Insert(user);
-        await _userRepository.SaveChangesAsync(); 
+        await _userRepository.SaveChangesAsync(cancellationToken); 
 
         return true;
     }
  
-    public async Task<LoginUserResponse> Login(LoginUserRequest loginDto)
+    public async Task<LoginUserResponse> Login(LoginUserRequest loginDto, CancellationToken cancellationToken)
     {
         var userResult = await _userRepository.GetFirstOrDefault(
             filter: u => u.Email == loginDto.Email,
-            includeProperties: "Roles"
+            includeProperties: "Roles",
+            cancellationToken: cancellationToken
         ) ?? throw new BadRequestException("Invalid username or password");
 
         var user = userResult;
@@ -56,7 +62,7 @@ public class AuthService : IAuthService
         if (passwordVerificationStatus == PasswordVerificationStatus.Failed)
             throw new BadRequestException("Invalid username or password");
 
-        var tokens = await _jwtProvider.GenerateTokens(user,true); 
+        var tokens = await _jwtProvider.GenerateTokens(user,true,cancellationToken); 
                                                         
         var response = _mapper.Map<(string accessToken, string refreshToken), LoginUserResponse>(tokens!);
         return response;
@@ -64,17 +70,19 @@ public class AuthService : IAuthService
     }
     
 
-    public async Task<string> RefreshToken(string oldRefreshToken)
+    public async Task<string> RefreshToken(string oldRefreshToken, CancellationToken cancellationToken)
     {
-        var refreshedToken = await _jwtProvider.RefreshToken(oldRefreshToken);
+        var refreshedToken = await _jwtProvider.RefreshToken(oldRefreshToken,cancellationToken);
 
         var response = refreshedToken;
         return response;
     }
 
-    public async Task Logout(string refreshToken)
+    public async Task Logout(string refreshToken, CancellationToken cancellationToken)
     {
-        var token = await _refreshTokenRepository.GetFirstOrDefault(rt => rt.Token == refreshToken)
+        var token = await _refreshTokenRepository.GetFirstOrDefault(
+            filter: rt => rt.Token == refreshToken,
+            cancellationToken: cancellationToken)
             ?? throw new NotFoundException();
 
         if (token == null || token.IsRevoked)
@@ -82,16 +90,17 @@ public class AuthService : IAuthService
 
         token.IsRevoked = true;
         _refreshTokenRepository.Update(token);
-        await _refreshTokenRepository.SaveChangesAsync(); 
+        await _refreshTokenRepository.SaveChangesAsync(cancellationToken); 
         
 
         
     }
     
-    public async Task LogoutAll(Guid userId)
+    public async Task LogoutAll(Guid userId, CancellationToken cancellationToken)
     {
         var tokens = await _refreshTokenRepository.GetAll(
-            filter: rt => rt.UserId == userId && !rt.IsRevoked
+            filter: rt => rt.UserId == userId && !rt.IsRevoked,
+            cancellationToken: cancellationToken
         );
 
         foreach (var token in tokens) 
@@ -100,7 +109,7 @@ public class AuthService : IAuthService
             _refreshTokenRepository.Update(token);
         }
 
-        await _refreshTokenRepository.SaveChangesAsync();
+        await _refreshTokenRepository.SaveChangesAsync(cancellationToken);
     }
 
 }

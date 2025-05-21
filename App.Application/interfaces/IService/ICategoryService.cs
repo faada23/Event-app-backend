@@ -1,8 +1,8 @@
 public interface ICategoryService
 {
-    Task<PagedResponse<GetCategoryResponse>> GetAllCategories(); 
-    Task<GetCategoryResponse> GetCategoryById(Guid id);
-    Task<GetCategoryResponse> CreateCategory(CreateUpdateCategoryRequest request);
-    Task<GetCategoryResponse> UpdateCategory(Guid id, CreateUpdateCategoryRequest request);
-    Task<bool> DeleteCategory(Guid id);
+    Task<PagedResponse<GetCategoryResponse>> GetAllCategories(CancellationToken cancellationToken); 
+    Task<GetCategoryResponse> GetCategoryById(Guid id, CancellationToken cancellationToken);
+    Task<GetCategoryResponse> CreateCategory(CreateUpdateCategoryRequest request, CancellationToken cancellationToken);
+    Task<GetCategoryResponse> UpdateCategory(Guid id, CreateUpdateCategoryRequest request, CancellationToken cancellationToken);
+    Task<bool> DeleteCategory(Guid id, CancellationToken cancellationToken);
 }

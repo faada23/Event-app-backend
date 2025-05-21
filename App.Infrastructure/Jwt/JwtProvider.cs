@@ -22,7 +22,7 @@ public class JwtProvider : IJwtProvider
         }
     }
 
-    public async Task<(string accessToken,string? refreshToken)> GenerateTokens(User user, bool generateRefreshToken)
+    public async Task<(string accessToken,string? refreshToken)> GenerateTokens(User user, bool generateRefreshToken, CancellationToken cancellationToken)
     {   
         var claims = new List<Claim>{
             new Claim("Id", user.Id.ToString()),
@@ -65,17 +65,19 @@ public class JwtProvider : IJwtProvider
             };
 
             _refreshTokenRepository.Insert(refreshTokenEntity);
-            await _refreshTokenRepository.SaveChangesAsync();
+            await _refreshTokenRepository.SaveChangesAsync(cancellationToken);
         }
 
         return (accessTokenString, refreshToken);
     }
 
-    public async Task<string> RefreshToken(string RefreshToken)
+    public async Task<string> RefreshToken(string RefreshToken,CancellationToken cancellationToken)
     {
         var refreshToken = await _refreshTokenRepository.GetFirstOrDefault(
             filter: x => x.Token == RefreshToken,
-            includeProperties: "User.Roles") ?? throw new NotFoundException("Refresh Token", RefreshToken);
+            includeProperties: "User.Roles",
+            cancellationToken: cancellationToken)
+                ?? throw new NotFoundException("Refresh Token", RefreshToken);
         
         if(refreshToken.IsRevoked == true)
             throw new BadRequestException("Refresh Token is revoked");
@@ -88,7 +90,7 @@ public class JwtProvider : IJwtProvider
         refreshToken.IsRevoked = true;
 
         var user = refreshToken.User ?? throw new NotFoundException("User",refreshToken.UserId);
-        var newTokensResult = await GenerateTokens(user,false);
+        var newTokensResult = await GenerateTokens(user,false,cancellationToken);
         return newTokensResult.accessToken;
     }
 

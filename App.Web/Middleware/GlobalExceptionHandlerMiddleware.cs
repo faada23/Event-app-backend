@@ -75,6 +75,18 @@ public class GlobalExceptionHandlerMiddleware
                 detail = updateEx.Message;
                 break;
 
+            case TaskCanceledException cancelEx:
+                statusCode = StatusCodes.Status500InternalServerError;
+                userMessage = "Operation canceled";
+                detail = cancelEx.Message;
+                break;
+
+            case OperationCanceledException cancelEx:
+                statusCode = StatusCodes.Status500InternalServerError;
+                userMessage = "Operation canceled";
+                detail = cancelEx.Message;
+                break;        
+
             default:
                 break;
         }

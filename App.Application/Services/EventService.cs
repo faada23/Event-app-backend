@@ -25,7 +25,7 @@ public class EventService : IEventService
     }
 
 
-    public async Task<PagedResponse<GetEventResponse>> GetAllEvents(PaginationParameters? pagParams, EventFilterCriteriaRequest? criteria = null)
+    public async Task<PagedResponse<GetEventResponse>> GetAllEvents(PaginationParameters? pagParams, EventFilterCriteriaRequest? criteria = null, CancellationToken cancellationToken = default)
     {
         Expression<Func<Event, bool>>? filter = null;
         if (criteria != null)
@@ -46,85 +46,95 @@ public class EventService : IEventService
             filter: filter,
             pagParams: pagParams,
             orderBy: q => q.OrderByDescending(e => e.DateTimeOfEvent),
-            includeProperties: "Category,Image"
+            includeProperties: "Category,Image",
+            cancellationToken: cancellationToken
         );
     
         var pagedResponse = _mapper.Map<PagedList<Event>, PagedResponse<GetEventResponse>>(eventsResult);
         return pagedResponse;
     }
 
-    public async Task<GetEventResponse> GetEventById(Guid id)
+    public async Task<GetEventResponse> GetEventById(Guid id, CancellationToken cancellationToken)
     {
         var currentEvent = await _eventRepository.GetFirstOrDefault(
             filter: e => e.Id == id,
-            includeProperties: "Category,Image" 
+            includeProperties: "Category,Image" ,
+            cancellationToken: cancellationToken
         ) ?? throw new NotFoundException("Event", id);
 
         return _mapper.Map<Event, GetEventResponse>(currentEvent);
     }
 
-    public async Task<GetEventResponse> CreateEvent(CreateEventRequest request)
+    public async Task<GetEventResponse> CreateEvent(CreateEventRequest request, CancellationToken cancellationToken)
     {
-        var category = await _categoryRepository.GetFirstOrDefault(c => c.Id == request.CategoryId)
+        var category = await _categoryRepository.GetFirstOrDefault(
+            filter: c => c.Id == request.CategoryId,
+            cancellationToken: cancellationToken)
             ?? throw new NotFoundException("Category", request.CategoryId);
 
         var newEvent = _mapper.Map<CreateEventRequest, Event>(request);
 
         _eventRepository.Insert(newEvent);
-        await _eventRepository.SaveChangesAsync();
+        await _eventRepository.SaveChangesAsync(cancellationToken);
 
         var createdEventWithDetails = await _eventRepository.GetFirstOrDefault(
             e => e.Id == newEvent.Id,
-            includeProperties: "Category,Image") ?? throw new NotFoundException("Event", newEvent.Id);
+            includeProperties: "Category,Image",
+            cancellationToken: cancellationToken) ?? throw new NotFoundException("Event", newEvent.Id);
         
         return _mapper.Map<Event, GetEventResponse>(createdEventWithDetails);
     }
 
-    public async Task<GetEventResponse> UpdateEventDetails(Guid id, UpdateEventRequest request)
+    public async Task<GetEventResponse> UpdateEventDetails(Guid id, UpdateEventRequest request, CancellationToken cancellationToken)
     {
         var eventToUpdate = await _eventRepository.GetFirstOrDefault(
             filter: e => e.Id == id,
-            includeProperties: "Category,Image"
+            includeProperties: "Category,Image",
+            cancellationToken: cancellationToken
         ) ?? throw new NotFoundException("Event", id);
 
         if (eventToUpdate.CategoryId != request.CategoryId)
         {
-            var category = await _categoryRepository.GetFirstOrDefault(x => x.Id == request.CategoryId)
+            var category = await _categoryRepository.GetFirstOrDefault(
+                filter: x => x.Id == request.CategoryId,
+                cancellationToken: cancellationToken)
                 ?? throw new NotFoundException("Category", request.CategoryId);
         }   
 
         _mapper.Map(request, eventToUpdate);
 
         _eventRepository.Update(eventToUpdate);
-        await _eventRepository.SaveChangesAsync();
+        await _eventRepository.SaveChangesAsync(cancellationToken);
 
         return _mapper.Map<Event, GetEventResponse>(eventToUpdate);
     }
 
-    public async Task<bool> DeleteEvent(Guid id)
+    public async Task<bool> DeleteEvent(Guid id, CancellationToken cancellationToken)
     {
         var eventToDelete = await _eventRepository.GetFirstOrDefault(
             filter: e => e.Id == id,
-            includeProperties: "Image" 
+            includeProperties: "Image",
+            cancellationToken: cancellationToken
         ) ?? throw new NotFoundException("Event", id);
 
         if (eventToDelete.Image != null)
             _fileStorageService.DeleteFile(eventToDelete.Image.StoredPath);
         
         _eventRepository.Delete(eventToDelete); 
-        await _eventRepository.SaveChangesAsync();
+        await _eventRepository.SaveChangesAsync(cancellationToken);
         
         return true;
     }
 
-    public async Task<EventImageDetailsResponse> UploadEventImage(Guid eventId, IFormFile imageFile)
+    public async Task<EventImageDetailsResponse> UploadEventImage(Guid eventId, IFormFile imageFile,CancellationToken cancellationToken)
     {
         if (imageFile == null || imageFile.Length == 0)
             throw new BadRequestException("image file is null or empty");
 
         var currentEvent = await _eventRepository.GetFirstOrDefault(
             filter: e => e.Id == eventId,
-            includeProperties: "Image"
+            includeProperties: "Image",
+            cancellationToken: cancellationToken
         ) ?? throw new NotFoundException("Event", eventId);
 
         if (currentEvent.Image != null)
@@ -133,7 +143,7 @@ public class EventService : IEventService
             _imageRepository.Delete(currentEvent.Image);
         }
 
-        var saveFileResult = await _fileStorageService.SaveFileAsync(imageFile, _eventImagesPath);
+        var saveFileResult = await _fileStorageService.SaveFileAsync(imageFile, _eventImagesPath, cancellationToken);
         
         var relativePath = saveFileResult;
         
@@ -149,15 +159,16 @@ public class EventService : IEventService
         _imageRepository.Insert(newImage);
         currentEvent.Image = newImage;
         
-        await _imageRepository.SaveChangesAsync();
+        await _imageRepository.SaveChangesAsync(cancellationToken);
         return _mapper.Map<Image, EventImageDetailsResponse>(newImage);
     }
 
-    public async Task<bool> DeleteEventImage(Guid eventId)
+    public async Task<bool> DeleteEventImage(Guid eventId, CancellationToken cancellationToken)
     {
         var currentEvent = await _eventRepository.GetFirstOrDefault(
             filter: e => e.Id == eventId,
-            includeProperties: "Image"
+            includeProperties: "Image",
+            cancellationToken
         ) ?? throw new NotFoundException("Event", eventId);
 
         if (currentEvent.Image == null)
@@ -168,7 +179,7 @@ public class EventService : IEventService
 
         _imageRepository.Delete(imageToDelete);
 
-        await _eventRepository.SaveChangesAsync();
+        await _eventRepository.SaveChangesAsync(cancellationToken);
         _fileStorageService.DeleteFile(storedPath);
 
         return true;

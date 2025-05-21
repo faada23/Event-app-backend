@@ -30,7 +30,8 @@ public class Repository<T> : IRepository<T> where T : class
         Expression<Func<T, bool>>? filter = null,
         PaginationParameters? pagParams = null,
         Func<IQueryable<T>, IOrderedQueryable<T>>? orderBy = null,
-        string? includeProperties = null)
+        string? includeProperties = null,
+        CancellationToken cancellationToken = default)
     {
 
         IQueryable<T> query = _dbSet;
@@ -46,7 +47,7 @@ public class Repository<T> : IRepository<T> where T : class
         orderBy ??= q => q.OrderByDescending(e => EF.Property<Guid>(e, "Id"));
         query = orderBy(query);
 
-        var totalItems = await query.CountAsync();
+        var totalItems = await query.CountAsync(cancellationToken);
 
         if (pagParams != null)
         {
@@ -55,7 +56,7 @@ public class Repository<T> : IRepository<T> where T : class
                 .Take(pagParams.PageSize);
         }
 
-        var items = await query.AsNoTracking().ToListAsync();
+        var items = await query.AsNoTracking().ToListAsync(cancellationToken);
         int pageNumber = pagParams?.Page ?? 1;
         int pageSize = pagParams?.PageSize ?? totalItems;
 
@@ -63,12 +64,12 @@ public class Repository<T> : IRepository<T> where T : class
         return pagedList;
     }
 
-    public async Task<T?> GetFirstOrDefault(Expression<Func<T, bool>> filter, string? includeProperties = null)
+    public async Task<T?> GetFirstOrDefault(Expression<Func<T, bool>> filter, string? includeProperties = null,CancellationToken cancellationToken = default)
     {
         IQueryable<T> query = _dbSet.Where(filter);
         query = IncludeProperties(query, includeProperties);
 
-        var entity = await query.FirstOrDefaultAsync();
+        var entity = await query.FirstOrDefaultAsync(cancellationToken);
         return entity;
     }
 
@@ -91,9 +92,9 @@ public class Repository<T> : IRepository<T> where T : class
         return query;
     }
 
-    public async Task<int> SaveChangesAsync()
+    public async Task<int> SaveChangesAsync(CancellationToken cancellationToken)
     {
-        int changes = await _db.SaveChangesAsync();
+        int changes = await _db.SaveChangesAsync(cancellationToken);
         return changes;
     }
 }

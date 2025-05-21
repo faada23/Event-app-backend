@@ -21,22 +21,28 @@ public class UserService : IUserService
         _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper)); 
     }
 
-    public async Task<GetUserResponse> GetUserById(Guid id)
+    public async Task<GetUserResponse> GetUserById(Guid id, CancellationToken cancellationToken)
     {
-        var userResult = await _userRepository.GetFirstOrDefault(filter: u => u.Id == id)
+        var userResult = await _userRepository.GetFirstOrDefault(
+            filter: u => u.Id == id,
+            cancellationToken: cancellationToken)
             ?? throw new NotFoundException("User", id);
 
         return _mapper.Map<User, GetUserResponse>(userResult);
     }
 
-    public async Task<GetUserResponse> UpdateUser(Guid id, UpdateUserRequest request)
+    public async Task<GetUserResponse> UpdateUser(Guid id, UpdateUserRequest request, CancellationToken cancellationToken)
     {
-        var userToUpdate = await _userRepository.GetFirstOrDefault(u => u.Id == id)
+        var userToUpdate = await _userRepository.GetFirstOrDefault(
+            filter: u => u.Id == id,
+            cancellationToken: cancellationToken)
             ?? throw new NotFoundException("User", id);
 
         if (userToUpdate.Email != request.Email)
         {
-            var existingEmail = await _userRepository.GetFirstOrDefault(u => u.Email == request.Email && u.Id != id);
+            var existingEmail = await _userRepository.GetFirstOrDefault(
+                filter: u => u.Email == request.Email && u.Id != id,
+                cancellationToken: cancellationToken);
 
             if(existingEmail != null)
                 throw new AlreadyExistsException("User", request.Email);
@@ -45,29 +51,35 @@ public class UserService : IUserService
         _mapper.Map(request, userToUpdate);
 
         _userRepository.Update(userToUpdate);
-        await _userRepository.SaveChangesAsync();
+        await _userRepository.SaveChangesAsync(cancellationToken);
 
         return _mapper.Map<User, GetUserResponse>(userToUpdate);
     }
 
-    public async Task<bool> DeleteUser(Guid id)
+    public async Task<bool> DeleteUser(Guid id, CancellationToken cancellationToken)
     {
-        var userToDelete = await _userRepository.GetFirstOrDefault(filter: u => u.Id == id)
+        var userToDelete = await _userRepository.GetFirstOrDefault(
+            filter: u => u.Id == id,
+            cancellationToken: cancellationToken)
             ?? throw new NotFoundException("User", id);
 
         _userRepository.Delete(userToDelete);
-        await _userRepository.SaveChangesAsync();
+        await _userRepository.SaveChangesAsync(cancellationToken);
 
         return true;
     }
 
-    public async Task<UserEventParticipationResponse> ParticipateInEvent(Guid userId, Guid eventId)
+    public async Task<UserEventParticipationResponse> ParticipateInEvent(Guid userId, Guid eventId, CancellationToken cancellationToken)
     {
-        var user = await _userRepository.GetFirstOrDefault(u => u.Id == userId) 
+        var user = await _userRepository.GetFirstOrDefault(
+            filter: u => u.Id == userId,
+            cancellationToken: cancellationToken) 
             ?? throw new NotFoundException("User",userId);
+
         var currentEvent = await _eventRepository.GetFirstOrDefault(
             filter: e => e.Id == eventId,
-            includeProperties: "EventParticipants") 
+            includeProperties: "EventParticipants",
+            cancellationToken: cancellationToken) 
             ?? throw new NotFoundException("Event",eventId);
 
         if(currentEvent.EventParticipants.Count >= currentEvent.MaxParticipants)
@@ -86,45 +98,50 @@ public class UserService : IUserService
         };
 
         _eventParticipantRepository.Insert(newParticipation);
-        await _eventParticipantRepository.SaveChangesAsync();
+        await _eventParticipantRepository.SaveChangesAsync(cancellationToken);
 
         var response = _mapper.Map<EventParticipant, UserEventParticipationResponse>(newParticipation);
         return response;
     }
 
-    public async Task<PagedResponse<GetUserResponse>> GetAllUsers(PaginationParameters? pagParams)
+    public async Task<PagedResponse<GetUserResponse>> GetAllUsers(PaginationParameters? pagParams, CancellationToken cancellationToken)
     {
         var users = await _userRepository.GetAll(
             pagParams: pagParams,
-            orderBy: q => q.OrderBy(u => u.LastName).ThenBy(u => u.FirstName)
+            orderBy: q => q.OrderBy(u => u.LastName).ThenBy(u => u.FirstName),
+            cancellationToken: cancellationToken
         );
 
         var pagedResponse = _mapper.Map<PagedList<User>, PagedResponse<GetUserResponse>>(users);
         return pagedResponse;
     }
 
-    public async Task<bool> CancelEventParticipation(Guid userId, Guid eventId)
+    public async Task<bool> CancelEventParticipation(Guid userId, Guid eventId, CancellationToken cancellationToken)
     {
         var participationResult = await _eventParticipantRepository.GetFirstOrDefault(
-            ep => ep.UserId == userId && ep.EventId == eventId
+            filter: ep => ep.UserId == userId && ep.EventId == eventId,
+            cancellationToken: cancellationToken
         ) ?? throw new NotFoundException("EventParticipant", $"eventId: {eventId}, userId: {userId}");
 
         _eventParticipantRepository.Delete(participationResult);
-        await _eventParticipantRepository.SaveChangesAsync();
+        await _eventParticipantRepository.SaveChangesAsync(cancellationToken);
 
         return true;
     }
 
-    public async Task<PagedResponse<UserParticipatedEventResponse>> GetUserParticipatedEvents(Guid userId, PaginationParameters? pagParams)
+    public async Task<PagedResponse<UserParticipatedEventResponse>> GetUserParticipatedEvents(Guid userId, PaginationParameters? pagParams, CancellationToken cancellationToken)
     {
-        var userExistsResult = await _userRepository.GetFirstOrDefault(u => u.Id == userId)
+        var userExistsResult = await _userRepository.GetFirstOrDefault(
+            filter: u => u.Id == userId,
+            cancellationToken: cancellationToken)
             ?? throw new NotFoundException("User",userId);
 
         var participations = await _eventParticipantRepository.GetAll(
             pagParams: pagParams,
             filter: ep => ep.UserId == userId,
             includeProperties: "Event",
-            orderBy: q => q.OrderByDescending(ep => ep.EventRegistrationDate)
+            orderBy: q => q.OrderByDescending(ep => ep.EventRegistrationDate),
+            cancellationToken: cancellationToken
         );
 
         var pagedResponse = _mapper.Map<PagedList<EventParticipant>, PagedResponse<UserParticipatedEventResponse>>(participations);
