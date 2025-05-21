@@ -1,12 +1,10 @@
-using Microsoft.AspNetCore.Identity;
-
 public class AuthService : IAuthService
 {
     private readonly IRepository<User> _userRepository;
     private readonly IRepository<RefreshToken> _refreshTokenRepository; 
     private readonly IRepository<Role> _roleRepository; 
     private readonly IJwtProvider _jwtProvider; 
-    private readonly PasswordHasher<User> _passwordHasher;
+    private readonly IUserPasswordHasher _passwordHasher;
     private readonly IDefaultMapper _mapper;
 
     public AuthService(
@@ -14,14 +12,15 @@ public class AuthService : IAuthService
         IRepository<RefreshToken> refreshTokenRepository,
         IRepository<Role> roleRepository,
         IDefaultMapper mapper,
-        IJwtProvider jwtProvider)
+        IJwtProvider jwtProvider,
+        IUserPasswordHasher userPasswordHasher)
     {
         _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
         _refreshTokenRepository = refreshTokenRepository ?? throw new ArgumentNullException(nameof(refreshTokenRepository));
         _roleRepository = roleRepository ?? throw new ArgumentNullException(nameof(roleRepository));
         _jwtProvider = jwtProvider ?? throw new ArgumentNullException(nameof(jwtProvider));
         _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
-        _passwordHasher = new PasswordHasher<User>();
+        _passwordHasher = userPasswordHasher ?? throw new ArgumentNullException(nameof(userPasswordHasher));
     }
 
     public async Task<bool> Register(RegisterUserRequest registerDto)
@@ -53,8 +52,8 @@ public class AuthService : IAuthService
 
         var user = userResult;
 
-        var passwordVerificationResult = _passwordHasher.VerifyHashedPassword(user, user.PasswordHash, loginDto.Password);
-        if (passwordVerificationResult == PasswordVerificationResult.Failed)
+        var passwordVerificationStatus = _passwordHasher.VerifyHashedPassword(user, user.PasswordHash, loginDto.Password);
+        if (passwordVerificationStatus == PasswordVerificationStatus.Failed)
             throw new BadRequestException("Invalid username or password");
 
         var tokens = await _jwtProvider.GenerateTokens(user); 
