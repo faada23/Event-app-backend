@@ -21,116 +21,74 @@ public class UserService : IUserService
         _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper)); 
     }
 
-    public async Task<Result<GetUserResponse>> GetUserById(Guid id)
+    public async Task<GetUserResponse> GetUserById(Guid id, CancellationToken cancellationToken)
     {
-        var userResult = await _userRepository.GetFirstOrDefault(filter: u => u.Id == id);
+        var userResult = await _userRepository.GetFirstOrDefault(
+            filter: u => u.Id == id,
+            cancellationToken: cancellationToken)
+            ?? throw new NotFoundException("User", id);
 
-        if (!userResult.IsSuccess)
-        {
-            return Result<GetUserResponse>.Failure(userResult.Message!, userResult.ErrorType!.Value);
-        }
-        if (userResult.Value == null)
-        {
-            return Result<GetUserResponse>.Failure($"User with ID {id} not found.", ErrorType.RecordNotFound);
-        }
-
-        return Result<GetUserResponse>.Success(_mapper.Map<User, GetUserResponse>(userResult.Value));
+        return _mapper.Map<User, GetUserResponse>(userResult);
     }
 
-    public async Task<Result<GetUserResponse>> UpdateUser(Guid id, UpdateUserRequest request)
+    public async Task<GetUserResponse> UpdateUser(Guid id, UpdateUserRequest request, CancellationToken cancellationToken)
     {
-        var userResult = await _userRepository.GetFirstOrDefault(u => u.Id == id);
-
-        if (!userResult.IsSuccess)
-        {
-            return Result<GetUserResponse>.Failure(userResult.Message!, userResult.ErrorType!.Value);
-        }
-
-        if (userResult.Value == null)
-        {
-            return Result<GetUserResponse>.Failure($"User with ID {id} not found.", ErrorType.RecordNotFound);
-        }
-
-        var userToUpdate = userResult.Value;
+        var userToUpdate = await _userRepository.GetFirstOrDefault(
+            filter: u => u.Id == id,
+            cancellationToken: cancellationToken)
+            ?? throw new NotFoundException("User", id);
 
         if (userToUpdate.Email != request.Email)
         {
-            var emailExistsResult = await _userRepository.GetFirstOrDefault(u => u.Email == request.Email && u.Id != id);
-            if (!emailExistsResult.IsSuccess)
-            {
-                return Result<GetUserResponse>.Failure(emailExistsResult.Message!, emailExistsResult.ErrorType!.Value);
-            }
-            if (emailExistsResult.Value != null)
-            {
-                return Result<GetUserResponse>.Failure($"Email '{request.Email}' is already in use by another account.", ErrorType.AlreadyExists);
-            }
+            var existingEmail = await _userRepository.GetFirstOrDefault(
+                filter: u => u.Email == request.Email && u.Id != id,
+                cancellationToken: cancellationToken);
+
+            if(existingEmail != null)
+                throw new AlreadyExistsException("User", request.Email);
         }
 
         _mapper.Map(request, userToUpdate);
 
         _userRepository.Update(userToUpdate);
-        var saveResult = await _userRepository.SaveChangesAsync();
+        await _userRepository.SaveChangesAsync(cancellationToken);
 
-        if (!saveResult.IsSuccess)
-        {
-            return Result<GetUserResponse>.Failure(saveResult.Message!, saveResult.ErrorType!.Value);
-        }
-
-         return Result<GetUserResponse>.Success(_mapper.Map<User, GetUserResponse>(userToUpdate));
+        return _mapper.Map<User, GetUserResponse>(userToUpdate);
     }
 
-    public async Task<Result<bool>> DeleteUser(Guid id)
+    public async Task<bool> DeleteUser(Guid id, CancellationToken cancellationToken)
     {
-        var userResult = await _userRepository.GetFirstOrDefault(filter: u => u.Id == id);
-
-        if (!userResult.IsSuccess)
-        {
-            return Result<bool>.Failure(userResult.Message!, userResult.ErrorType!.Value);
-        }
-        if (userResult.Value == null)
-        {
-            return Result<bool>.Failure($"User with ID {id} not found.", ErrorType.RecordNotFound);
-        }
-
-        var userToDelete = userResult.Value;
+        var userToDelete = await _userRepository.GetFirstOrDefault(
+            filter: u => u.Id == id,
+            cancellationToken: cancellationToken)
+            ?? throw new NotFoundException("User", id);
 
         _userRepository.Delete(userToDelete);
-        var saveResult = await _userRepository.SaveChangesAsync();
+        await _userRepository.SaveChangesAsync(cancellationToken);
 
-        if (!saveResult.IsSuccess)
-        {
-            return Result<bool>.Failure(saveResult.Message!, saveResult.ErrorType!.Value);
-        }
-
-        return Result<bool>.Success(true);
+        return true;
     }
 
-    public async Task<Result<UserEventParticipationResponse>> ParticipateInEvent(Guid userId, Guid eventId)
+    public async Task<UserEventParticipationResponse> ParticipateInEvent(Guid userId, Guid eventId, CancellationToken cancellationToken)
     {
-        var userResult = await _userRepository.GetFirstOrDefault(u => u.Id == userId);
-        if (!userResult.IsSuccess || userResult.Value == null)
-        {
-            return Result<UserEventParticipationResponse>.Failure(userResult.Message ?? $"User with ID {userId} not found.", userResult.ErrorType ?? ErrorType.RecordNotFound);
-        }
+        var user = await _userRepository.GetFirstOrDefault(
+            filter: u => u.Id == userId,
+            cancellationToken: cancellationToken) 
+            ?? throw new NotFoundException("User",userId);
 
-        var eventResult = await _eventRepository.GetFirstOrDefault(e => e.Id == eventId);
-        if (!eventResult.IsSuccess || eventResult.Value == null)
-        {
-            return Result<UserEventParticipationResponse>.Failure(eventResult.Message ?? $"Event with ID {eventId} not found.", eventResult.ErrorType ?? ErrorType.RecordNotFound);
-        }
+        var currentEvent = await _eventRepository.GetFirstOrDefault(
+            filter: e => e.Id == eventId,
+            includeProperties: "EventParticipants",
+            cancellationToken: cancellationToken) 
+            ?? throw new NotFoundException("Event",eventId);
 
-        var existingParticipation = await _eventParticipantRepository.GetFirstOrDefault(
-            ep => ep.UserId == userId && ep.EventId == eventId
-        );
+        if(currentEvent.EventParticipants.Count >= currentEvent.MaxParticipants)
+            throw new BadRequestException("The maximum number of participants has been reached.");
+        
+        var existingParticipation = currentEvent.EventParticipants.Where(x => x.UserId == userId);
 
-        if (!existingParticipation.IsSuccess)
-        {
-            return Result<UserEventParticipationResponse>.Failure(existingParticipation.Message!, existingParticipation.ErrorType!.Value);
-        }
-        if (existingParticipation.Value != null)
-        {
-            return Result<UserEventParticipationResponse>.Failure("User is already participating in this event.", ErrorType.AlreadyExists);
-        }
+        if(existingParticipation.Count() != 0)
+            throw new AlreadyExistsException("EventParticipant",$"eventId: {eventId}, userId: {userId}");
 
         var newParticipation = new EventParticipant
         {
@@ -140,90 +98,53 @@ public class UserService : IUserService
         };
 
         _eventParticipantRepository.Insert(newParticipation);
-        var saveResult = await _eventParticipantRepository.SaveChangesAsync();
-
-        if (!saveResult.IsSuccess || saveResult.Value <= 0)
-        {
-            return Result<UserEventParticipationResponse>.Failure(saveResult.Message!, saveResult.ErrorType!.Value);
-        }
+        await _eventParticipantRepository.SaveChangesAsync(cancellationToken);
 
         var response = _mapper.Map<EventParticipant, UserEventParticipationResponse>(newParticipation);
-
-        return Result<UserEventParticipationResponse>.Success(response);
+        return response;
     }
 
-    public async Task<Result<PagedResponse<GetUserResponse>>> GetAllUsers(PaginationParameters? pagParams)
+    public async Task<PagedResponse<GetUserResponse>> GetAllUsers(PaginationParameters? pagParams, CancellationToken cancellationToken)
     {
-        var usersResult = await _userRepository.GetAll(
+        var users = await _userRepository.GetAll(
             pagParams: pagParams,
-            orderBy: q => q.OrderBy(u => u.LastName).ThenBy(u => u.FirstName)
+            orderBy: q => q.OrderBy(u => u.LastName).ThenBy(u => u.FirstName),
+            cancellationToken: cancellationToken
         );
 
-        if (!usersResult.IsSuccess)
-        {
-            return Result<PagedResponse<GetUserResponse>>.Failure(usersResult.Message!, usersResult.ErrorType!.Value);
-        }
-
-        var pagedList = usersResult.Value!;
-        var pagedResponse = _mapper.Map<PagedList<User>, PagedResponse<GetUserResponse>>(usersResult.Value!);
-
-        return Result<PagedResponse<GetUserResponse>>.Success(pagedResponse);
+        var pagedResponse = _mapper.Map<PagedList<User>, PagedResponse<GetUserResponse>>(users);
+        return pagedResponse;
     }
 
-    public async Task<Result<bool>> CancelEventParticipation(Guid userId, Guid eventId)
+    public async Task<bool> CancelEventParticipation(Guid userId, Guid eventId, CancellationToken cancellationToken)
     {
         var participationResult = await _eventParticipantRepository.GetFirstOrDefault(
-            ep => ep.UserId == userId && ep.EventId == eventId
-        );
+            filter: ep => ep.UserId == userId && ep.EventId == eventId,
+            cancellationToken: cancellationToken
+        ) ?? throw new NotFoundException("EventParticipant", $"eventId: {eventId}, userId: {userId}");
 
-        if (!participationResult.IsSuccess)
-        {
-            return Result<bool>.Failure(participationResult.Message!, participationResult.ErrorType!.Value);
-        }
-        if (participationResult.Value == null)
-        {
-            return Result<bool>.Failure("User is not participating in this event.", ErrorType.RecordNotFound);
-        }
+        _eventParticipantRepository.Delete(participationResult);
+        await _eventParticipantRepository.SaveChangesAsync(cancellationToken);
 
-        _eventParticipantRepository.Delete(participationResult.Value);
-        var saveResult = await _eventParticipantRepository.SaveChangesAsync();
-
-        if (!saveResult.IsSuccess)
-        {
-            return Result<bool>.Failure(saveResult.Message!, saveResult.ErrorType!.Value);
-        }
-
-        return Result<bool>.Success(true);
+        return true;
     }
 
-    public async Task<Result<PagedResponse<UserParticipatedEventResponse>>> GetUserParticipatedEvents(Guid userId, PaginationParameters? pagParams)
+    public async Task<PagedResponse<UserParticipatedEventResponse>> GetUserParticipatedEvents(Guid userId, PaginationParameters? pagParams, CancellationToken cancellationToken)
     {
-        var userExistsResult = await _userRepository.GetFirstOrDefault(u => u.Id == userId);
-        if (!userExistsResult.IsSuccess)
-        {
-            return Result<PagedResponse<UserParticipatedEventResponse>>.Failure(userExistsResult.Message!, userExistsResult.ErrorType!.Value);
-        }
-        if (userExistsResult.Value == null)
-        {
-            return Result<PagedResponse<UserParticipatedEventResponse>>.Failure($"User with ID {userId} not found.", ErrorType.RecordNotFound);
-        }
+        var userExistsResult = await _userRepository.GetFirstOrDefault(
+            filter: u => u.Id == userId,
+            cancellationToken: cancellationToken)
+            ?? throw new NotFoundException("User",userId);
 
-        var participationsPageResult = await _eventParticipantRepository.GetAll(
+        var participations = await _eventParticipantRepository.GetAll(
             pagParams: pagParams,
             filter: ep => ep.UserId == userId,
             includeProperties: "Event",
-            orderBy: q => q.OrderByDescending(ep => ep.EventRegistrationDate)
+            orderBy: q => q.OrderByDescending(ep => ep.EventRegistrationDate),
+            cancellationToken: cancellationToken
         );
 
-        if (!participationsPageResult.IsSuccess)
-        {
-            return Result<PagedResponse<UserParticipatedEventResponse>>.Failure(participationsPageResult.Message!, participationsPageResult.ErrorType!.Value);
-        }
-
-        var pagedParticipations = participationsPageResult.Value;
-
-        var pagedResponse = _mapper.Map<PagedList<EventParticipant>, PagedResponse<UserParticipatedEventResponse>>(pagedParticipations);
-
-        return Result<PagedResponse<UserParticipatedEventResponse>>.Success(pagedResponse);
+        var pagedResponse = _mapper.Map<PagedList<EventParticipant>, PagedResponse<UserParticipatedEventResponse>>(participations);
+        return pagedResponse;
     }
 }

@@ -22,7 +22,7 @@ public class JwtProvider : IJwtProvider
         }
     }
 
-    public async Task<Result<(string accessToken,string refreshToken)>> GenerateTokens(User user)
+    public async Task<(string accessToken,string? refreshToken)> GenerateTokens(User user, bool generateRefreshToken, CancellationToken cancellationToken)
     {   
         var claims = new List<Claim>{
             new Claim("Id", user.Id.ToString()),
@@ -52,57 +52,46 @@ public class JwtProvider : IJwtProvider
         var accessTokenString = new JwtSecurityTokenHandler().WriteToken(jwtAccessToken);
 
         //-------------------------------------------------------------------------------
+        string? refreshToken = null;
 
-        var refreshToken = GenerateRefreshTokenString();
+        if(generateRefreshToken){
+            refreshToken = GenerateRefreshTokenString();
 
-        var refreshTokenEntity = new RefreshToken{
-            Token = refreshToken,
-            UserId = user.Id,
-            ExpiryDate = DateTimeOffset.UtcNow.Add(_options.Value.RefreshTokenExpires),
-            AddedDate = DateTimeOffset.UtcNow
-        };
+            var refreshTokenEntity = new RefreshToken{
+                Token = refreshToken,
+                UserId = user.Id,
+                ExpiryDate = DateTimeOffset.UtcNow.Add(_options.Value.RefreshTokenExpires),
+                AddedDate = DateTimeOffset.UtcNow
+            };
 
-        _refreshTokenRepository.Insert(refreshTokenEntity);
-        var result = await _refreshTokenRepository.SaveChangesAsync();
+            _refreshTokenRepository.Insert(refreshTokenEntity);
+            await _refreshTokenRepository.SaveChangesAsync(cancellationToken);
+        }
 
-        if(result.IsSuccess) 
-            return Result<(string, string)>.Success((accessTokenString, refreshToken));
-        else
-            return Result<(string,string)>.Failure(result.Message!,ErrorType.DatabaseError);
+        return (accessTokenString, refreshToken);
     }
 
-    public async Task<Result<(string accessToken, string refreshToken)>> RefreshTokens(string oldRefreshToken)
+    public async Task<string> RefreshToken(string RefreshToken,CancellationToken cancellationToken)
     {
-        var result = await _refreshTokenRepository.GetFirstOrDefault(
-            filter: x => x.Token == oldRefreshToken,
-            includeProperties: "User.Roles");
-
-        if(!result.IsSuccess)
-            return Result<(string,string)>.Failure("Error while seraching refresh token",ErrorType.DatabaseError);
+        var refreshToken = await _refreshTokenRepository.GetFirstOrDefault(
+            filter: x => x.Token == RefreshToken,
+            includeProperties: "User.Roles",
+            cancellationToken: cancellationToken)
+                ?? throw new NotFoundException("Refresh Token", RefreshToken);
         
-        if(result.Value!.Token == null)
-            return Result<(string,string)>.Failure("Invalid refresh token",ErrorType.RecordNotFound);
-        
-        if(result.Value.IsRevoked == true)
-            return Result<(string,string)>.Failure("Refresh token has been revoked",ErrorType.Forbidden);
+        if(refreshToken.IsRevoked == true)
+            throw new BadRequestException("Refresh Token is revoked");
 
-        if(result.Value.ExpiryDate < DateTimeOffset.UtcNow){
-            result.Value.IsRevoked = true;
-            return Result<(string,string)>.Failure("Refresh token is Expired",ErrorType.Forbidden);
+        if(refreshToken.ExpiryDate < DateTimeOffset.UtcNow){
+            refreshToken.IsRevoked = true;
+            throw new BadRequestException("Refresh Token is expired");
         }
         
-        result.Value.IsRevoked = true;
+        refreshToken.IsRevoked = true;
 
-        var user = result.Value.User;
-        if(user == null)
-            return Result<(string,string)>.Failure("User was not found for the refresh token",ErrorType.RecordNotFound);
-        
-        var newTokensResult = await GenerateTokens(user);
-
-        if(!newTokensResult.IsSuccess)
-            return Result<(string,string)>.Failure(result.Message!,result.ErrorType!.Value);
-
-        return newTokensResult;
+        var user = refreshToken.User ?? throw new NotFoundException("User",refreshToken.UserId);
+        var newTokensResult = await GenerateTokens(user,false,cancellationToken);
+        return newTokensResult.accessToken;
     }
 
     private string GenerateRefreshTokenString()

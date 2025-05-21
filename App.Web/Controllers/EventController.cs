@@ -11,11 +11,6 @@ public class EventsController : ControllerBase
     {
         _eventService = eventService ?? throw new ArgumentNullException(nameof(eventService));
     }
-
-    private ActionResult ResultIdIsNull(){
-        var badRequest = Result<object>.Failure("Event ID cannot be empty.", ErrorType.InvalidInput);
-        return badRequest.ToActionResult();
-    }
     
     [HttpGet]
     [AllowAnonymous]
@@ -24,84 +19,62 @@ public class EventsController : ControllerBase
         [FromQuery] EventFilterCriteriaRequest? criteria)
     {
         var result = await _eventService.GetAllEvents(pagParams, criteria);
-        return result.ToActionResult(); 
+        return Ok(result);
     }
 
     [HttpGet("{id:guid}")]
     [AllowAnonymous] 
-    public async Task<ActionResult<GetEventResponse>> GetEventById(Guid id)
+    public async Task<ActionResult<GetEventResponse>> GetEventById(Guid id, CancellationToken cancellationToken)
     {
-        if (id == Guid.Empty)
-            return ResultIdIsNull();
+        var result = await _eventService.GetEventById(id, cancellationToken);
 
-        var result = await _eventService.GetEventById(id);
-        return result.ToActionResult();
+        return Ok(result);
     }
 
     [HttpPost]
     [Authorize(Policy ="AdminPolicy")]
-    public async Task<ActionResult<GetEventResponse>> CreateEvent([FromBody] CreateEventRequest request)
+    public async Task<ActionResult<GetEventResponse>> CreateEvent([FromBody] CreateEventRequest request, CancellationToken cancellationToken)
     {
-        var result = await _eventService.CreateEvent(request);
+        var result = await _eventService.CreateEvent(request, cancellationToken);
 
-        return result.ToActionResult();
+        return Ok(result);
     }
 
     [HttpPut("{id:guid}")]
     [Authorize(Policy ="AdminPolicy")]
-    public async Task<ActionResult<GetEventResponse>> UpdateEventDetails(Guid id, [FromBody] UpdateEventRequest request)
+    public async Task<ActionResult<GetEventResponse>> UpdateEventDetails(Guid id, [FromBody] UpdateEventRequest request, CancellationToken cancellationToken)
     {
-        if (id == Guid.Empty)
-            return ResultIdIsNull();
+        var result = await _eventService.UpdateEventDetails(id, request, cancellationToken);
 
-        var result = await _eventService.UpdateEventDetails(id, request);
-        return result.ToActionResult(); 
+        return Ok(result); 
     }
 
 
     [HttpDelete("{id:guid}")]
     [Authorize(Policy ="AdminPolicy")]
-    public async Task<IActionResult> DeleteEvent(Guid id) 
+    public async Task<IActionResult> DeleteEvent(Guid id, CancellationToken cancellationToken) 
     {
-        if (id == Guid.Empty)
-            return ResultIdIsNull();
+        var result = await _eventService.DeleteEvent(id, cancellationToken);
 
-        var result = await _eventService.DeleteEvent(id);
-        return result.ToActionResult();
+        return Ok(result);
     }
 
     [HttpPost("{eventId:guid}/image")]
     [Authorize(Policy ="AdminPolicy")]
-    public async Task<IActionResult> UploadEventImage(Guid eventId, IFormFile imageFile) 
-    {
-        if (imageFile == null || imageFile.Length == 0)
-        {
-            return BadRequest();
-        }
+    public async Task<IActionResult> UploadEventImage(Guid eventId, IFormFile imageFile, CancellationToken cancellationToken) 
+    {        
+        var result = await _eventService.UploadEventImage(eventId, imageFile, cancellationToken);
 
-        const long maxFileSize = 10 * 1024 * 1024; 
-        if (imageFile.Length > maxFileSize)
-        {
-             return BadRequest("Max file size is 10 MB");
-        }
-
-        var result = await _eventService.UploadEventImage(eventId, imageFile);
-         return result.ToActionResult();
-
+        return Ok(result);
     }
 
     [HttpDelete("{eventId:guid}/image")]
     [Authorize(Policy ="AdminPolicy")]
-    public async Task<IActionResult> DeleteEventImage(Guid eventId)
+    public async Task<IActionResult> DeleteEventImage(Guid eventId, CancellationToken cancellationToken)
     {
-        var result = await _eventService.DeleteEventImage(eventId);
-
-        if (!result.IsSuccess)
-        {
-            return result.ToActionResult();
-        }
-
-        return NoContent(); 
+        var result = await _eventService.DeleteEventImage(eventId, cancellationToken);
+        
+        return Ok(result); 
     }
 
 }
