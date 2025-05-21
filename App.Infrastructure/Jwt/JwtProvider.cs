@@ -22,7 +22,7 @@ public class JwtProvider : IJwtProvider
         }
     }
 
-    public async Task<(string accessToken,string refreshToken)> GenerateTokens(User user)
+    public async Task<(string accessToken,string? refreshToken)> GenerateTokens(User user, bool generateRefreshToken)
     {   
         var claims = new List<Claim>{
             new Claim("Id", user.Id.ToString()),
@@ -52,41 +52,44 @@ public class JwtProvider : IJwtProvider
         var accessTokenString = new JwtSecurityTokenHandler().WriteToken(jwtAccessToken);
 
         //-------------------------------------------------------------------------------
+        string? refreshToken = null;
 
-        var refreshToken = GenerateRefreshTokenString();
+        if(generateRefreshToken){
+            refreshToken = GenerateRefreshTokenString();
 
-        var refreshTokenEntity = new RefreshToken{
-            Token = refreshToken,
-            UserId = user.Id,
-            ExpiryDate = DateTimeOffset.UtcNow.Add(_options.Value.RefreshTokenExpires),
-            AddedDate = DateTimeOffset.UtcNow
-        };
+            var refreshTokenEntity = new RefreshToken{
+                Token = refreshToken,
+                UserId = user.Id,
+                ExpiryDate = DateTimeOffset.UtcNow.Add(_options.Value.RefreshTokenExpires),
+                AddedDate = DateTimeOffset.UtcNow
+            };
 
-        _refreshTokenRepository.Insert(refreshTokenEntity);
-        await _refreshTokenRepository.SaveChangesAsync();
+            _refreshTokenRepository.Insert(refreshTokenEntity);
+            await _refreshTokenRepository.SaveChangesAsync();
+        }
 
         return (accessTokenString, refreshToken);
     }
 
-    public async Task<(string accessToken, string refreshToken)> RefreshTokens(string oldRefreshToken)
+    public async Task<string> RefreshToken(string RefreshToken)
     {
         var refreshToken = await _refreshTokenRepository.GetFirstOrDefault(
-            filter: x => x.Token == oldRefreshToken,
-            includeProperties: "User.Roles") ?? throw new Exception();
+            filter: x => x.Token == RefreshToken,
+            includeProperties: "User.Roles") ?? throw new NotFoundException("Refresh Token", RefreshToken);
         
         if(refreshToken.IsRevoked == true)
-            throw new Exception();
+            throw new BadRequestException("Refresh Token is revoked");
 
         if(refreshToken.ExpiryDate < DateTimeOffset.UtcNow){
             refreshToken.IsRevoked = true;
-            throw new Exception();
+            throw new BadRequestException("Refresh Token is expired");
         }
         
         refreshToken.IsRevoked = true;
 
-        var user = refreshToken.User ?? throw new Exception();
-        var newTokensResult = await GenerateTokens(user);
-        return newTokensResult;
+        var user = refreshToken.User ?? throw new NotFoundException("User",refreshToken.UserId);
+        var newTokensResult = await GenerateTokens(user,false);
+        return newTokensResult.accessToken;
     }
 
     private string GenerateRefreshTokenString()

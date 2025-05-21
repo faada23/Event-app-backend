@@ -52,8 +52,8 @@ public class AuthController : ControllerBase
             return Unauthorized("Refresh token not found in cookie.");
         }
 
-        var result = await _authService.RefreshToken(refreshTokenFromCookie);
-        SetTokenCookies(result.AccessToken, result.RefreshToken);
+        var accessToken = await _authService.RefreshToken(refreshTokenFromCookie);
+        Response.Cookies.Append("JwtCookie", accessToken);
         return Ok();
     }
 

@@ -56,20 +56,19 @@ public class AuthService : IAuthService
         if (passwordVerificationStatus == PasswordVerificationStatus.Failed)
             throw new BadRequestException("Invalid username or password");
 
-        var tokens = await _jwtProvider.GenerateTokens(user); 
+        var tokens = await _jwtProvider.GenerateTokens(user,true); 
                                                         
-        var response = _mapper.Map<(string accessToken, string refreshToken), LoginUserResponse>(tokens);
+        var response = _mapper.Map<(string accessToken, string refreshToken), LoginUserResponse>(tokens!);
         return response;
         
     }
     
 
-    public async Task<RefreshTokenResponse> RefreshToken(string oldRefreshToken)
+    public async Task<string> RefreshToken(string oldRefreshToken)
     {
-        var refreshedTokens = await _jwtProvider.RefreshTokens(oldRefreshToken);
+        var refreshedToken = await _jwtProvider.RefreshToken(oldRefreshToken);
 
-        var response = _mapper.Map<(string accessToken, string refreshToken), RefreshTokenResponse>(refreshedTokens);
-
+        var response = refreshedToken;
         return response;
     }
 
