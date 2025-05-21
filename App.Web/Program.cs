@@ -34,6 +34,8 @@ builder.Services.AddScoped<IEventService,EventService>();
 builder.Services.AddScoped<IUserPasswordHasher,PasswordHasherAdapter>();
 builder.Services.AddScoped<IPasswordHasher<User>,PasswordHasher<User>>();
 
+builder.Services.AddScoped<ICookieAuthManager, CookieAuthManager>();
+
 builder.Services.Configure<FileStorageOptions>(options =>
 {
     options.BasePath = builder.Environment.WebRootPath;

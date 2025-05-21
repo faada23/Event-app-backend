@@ -7,15 +7,12 @@ using Microsoft.AspNetCore.Mvc;
 public class UsersController : ControllerBase
 {
     private readonly IUserService _userService;
+    private readonly ICookieAuthManager _cookieAuthManager;
 
-    public UsersController(IUserService userService)
+    public UsersController(IUserService userService, ICookieAuthManager cookieAuthManager)
     {
         _userService = userService ?? throw new ArgumentNullException(nameof(userService));
-    }
-    private void ClearTokenCookies()
-    {
-        Response.Cookies.Append("JwtCookie", "");
-        Response.Cookies.Append("RefreshTokenCookie", "");
+        _cookieAuthManager = cookieAuthManager ?? throw new ArgumentNullException(nameof(cookieAuthManager));
     }
 
     private Guid GetCurrentUserIdFromClaims()
@@ -23,7 +20,7 @@ public class UsersController : ControllerBase
         var userIdClaim = User.FindFirstValue("Id");
         if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
         {
-            throw new UnauthorizedAccessException("User ID claim is missing or invalid.");
+            throw new UnauthorizedAccessException("User ID is missing or invalid.");
         }
         return userId;
     }
@@ -88,7 +85,7 @@ public class UsersController : ControllerBase
     public async Task<IActionResult> DeleteCurrentUser(CancellationToken cancellationToken)
     {
         Guid currentUserId = GetCurrentUserIdFromClaims();
-        ClearTokenCookies();
+        _cookieAuthManager.ClearAuthCookies(HttpContext);
         return await DeleteUser(currentUserId, cancellationToken);
     }
 

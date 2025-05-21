@@ -7,22 +7,12 @@ using Microsoft.AspNetCore.Mvc;
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
+    private readonly ICookieAuthManager _cookieAuthManager;
 
-    public AuthController(IAuthService authService)
+    public AuthController(IAuthService authService, ICookieAuthManager cookieAuthManager)
     {
         _authService = authService ?? throw new ArgumentNullException(nameof(authService));
-    }
-
-    private void SetTokenCookies(string accessToken, string refreshToken)
-    {
-        Response.Cookies.Append("JwtCookie", accessToken);
-        Response.Cookies.Append("RefreshTokenCookie", refreshToken);
-    }
-
-    private void ClearTokenCookies()
-    {
-        Response.Cookies.Append("JwtCookie", "");
-        Response.Cookies.Append("RefreshTokenCookie", "");
+        _cookieAuthManager = cookieAuthManager ?? throw new ArgumentNullException(nameof(cookieAuthManager));
     }
 
     [AllowAnonymous]
@@ -38,7 +28,7 @@ public class AuthController : ControllerBase
     public async Task<ActionResult> Login([FromBody] LoginUserRequest request,CancellationToken cancellationToken)
     {
         var result = await _authService.Login(request,cancellationToken);
-        SetTokenCookies(result.AccessToken, result.RefreshToken);
+        _cookieAuthManager.SetAuthCookies(HttpContext, result);
         return Ok();
     }
 
@@ -46,14 +36,10 @@ public class AuthController : ControllerBase
     [HttpPost("refresh")]
     public async Task<IActionResult> Refresh(CancellationToken cancellationToken)
     {
-        var refreshTokenFromCookie = Request.Cookies["RefreshTokenCookie"];
-        if (string.IsNullOrEmpty(refreshTokenFromCookie))
-        {
-            return Unauthorized("Refresh token not found in cookie.");
-        }
+        var refreshTokenCookie = _cookieAuthManager.GetRefreshTokenFromCookie(HttpContext);
+        var accessToken = await _authService.RefreshToken(refreshTokenCookie ?? string.Empty, cancellationToken);
+        _cookieAuthManager.SetAccessTokenCookie(HttpContext, accessToken);
 
-        var accessToken = await _authService.RefreshToken(refreshTokenFromCookie, cancellationToken);
-        Response.Cookies.Append("JwtCookie", accessToken);
         return Ok();
     }
 
@@ -61,10 +47,10 @@ public class AuthController : ControllerBase
     [Authorize(Policy ="AuthenticatedUserPolicy")]
     public async Task<ActionResult> Logout(CancellationToken cancellationToken)
     {
-        var refreshTokenFromCookie = Request.Cookies["RefreshTokenCookie"];
-        await _authService.Logout(refreshTokenFromCookie ?? string.Empty, cancellationToken);
+        var refreshTokenCookie = _cookieAuthManager.GetRefreshTokenFromCookie(HttpContext);
+        await _authService.Logout(refreshTokenCookie ?? string.Empty, cancellationToken);
 
-        ClearTokenCookies();
+        _cookieAuthManager.ClearAuthCookies(HttpContext);
         return Ok();
 
     }
@@ -76,11 +62,11 @@ public class AuthController : ControllerBase
         var userIdClaim = User.FindFirstValue("Id");
         if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out Guid userId))
         {
-            return Unauthorized("User ID claim not found or invalid");
+            return Unauthorized("User ID not found or invalid");
         }
         await _authService.LogoutAll(userId, cancellationToken);
 
-        ClearTokenCookies();
+        _cookieAuthManager.ClearAuthCookies(HttpContext);
         return Ok();
     }
 
